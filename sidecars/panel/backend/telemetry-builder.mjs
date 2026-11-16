@@ -39,7 +39,8 @@ import {
   isCarbonModelIdentifier,
 } from './model-pricing.mjs';
 import { getCloudStatus, pricingCatalogRevision } from './pricing-catalog.mjs';
-import { buildOfficialQuotaPools } from './quota-pools.mjs';
+import { buildOfficialQuotaPools, POOL_PRIORITY_ORDER } from './quota-pools.mjs';
+import { updateLedgerAndBuildSessionUsedQuota } from './quota-ledger.mjs';
 import {
   aggregateMultiWindowUsage,
   buildScopedModelBreakdown,
@@ -47,7 +48,6 @@ import {
 } from './usage-aggregator.mjs';
 
 const MAX_RECENT_CONVERSATIONS = 30;
-const POOL_PRIORITY_ORDER = ['Gemini', 'Argon', 'Carbon', 'Claude & GPT'];
 const inFlightTelemetrySources = new Map();
 const trajectoryModelFacts = new WeakMap();
 let lastMainPreparation = null;
@@ -1023,7 +1023,16 @@ export async function buildTelemetryPayloadInternal(
     weeklyResetMs: accountWeeklyResetMs || parseIsoMs(activeLiveWeekly?.resetTime),
   };
 
-  // 5. 多时间窗口聚合（预设窗口 + 当前选定窗口 + 趋势 + 月序列 + 来源与模型拆解 + 各配额池独立周期统计）
+  const titleByCascadeId = new Map();
+  for (const c of conversations) {
+    const cid = String(c?.cascadeId || '').toLowerCase();
+    if (cid && c?.title) titleByCascadeId.set(cid, String(c.title));
+  }
+  if (activeCascadeId && activeConvSummary?.title) {
+    titleByCascadeId.set(String(activeCascadeId).toLowerCase(), String(activeConvSummary.title));
+  }
+
+  // 5. 多时间窗口聚合（预设窗口 + 当前选定窗口 + 趋势 + 月序列 + 来源占比 + 分模型与分会话对比 + 各配额池独立周期统计）
   const {
     selectedWindow,
     trendStartMs,
@@ -1033,6 +1042,7 @@ export async function buildTelemetryPayloadInternal(
     finalizedPresets,
     trendSeries,
     sourcesBreakdown,
+    conversationsBreakdown,
     currentYear,
     monthlySeries,
     weekBucket,
@@ -1045,9 +1055,20 @@ export async function buildTelemetryPayloadInternal(
     currentAccountName: accountScope,
     activeCascadeId,
     activeFamilyCascadeIds,
+    titleByCascadeId,
     resolveStepModel,
     quotaPoolsMap,
     modelInputs,
+  });
+
+  const sessionUsedQuota = updateLedgerAndBuildSessionUsedQuota({
+    activeCascadeId,
+    activeFamilyCascadeIds,
+    currentAccountName: accountScope,
+    quotaPoolsMap,
+    officialQuotaInfo,
+    dynamicModelMap,
+    resolveStepModel,
   });
 
   const emptyCycleSummary = () => ({
@@ -1482,6 +1503,7 @@ export async function buildTelemetryPayloadInternal(
       presets: finalizedPresets,
       trendSeries,
       sourcesBreakdown,
+      conversationsBreakdown,
       monthlyYear: currentYear,
       monthlySeries,
     },
@@ -1495,6 +1517,7 @@ export async function buildTelemetryPayloadInternal(
         errorMessage: officialQuotaInfo?.error || null,
       },
       activePool: activePoolQuota,
+      sessionUsed: sessionUsedQuota,
       pools: Array.from(quotaPoolsMap.values()).sort((a, b) => {
         const order = { Gemini: 0, Argon: 1, Carbon: 2, 'Claude & GPT': 3 };
         return (order[a.family] ?? 99) - (order[b.family] ?? 99);

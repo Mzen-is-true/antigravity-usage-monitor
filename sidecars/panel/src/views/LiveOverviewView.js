@@ -25,6 +25,11 @@ export {
   quotaPoolRowSig,
   syncPoolQuotaRow,
 } from '../components/widgets/QuotaPoolsWidget.js';
+export {
+  buildSessionUsedQuotaItems,
+  syncUsedPoolQuotaRow,
+  usedQuotaPoolRowSig,
+} from '../components/widgets/SessionUsedQuotaWidget.js';
 
 export const LiveOverviewView = defineComponent({
   name: 'LiveOverviewView',

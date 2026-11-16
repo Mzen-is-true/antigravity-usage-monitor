@@ -198,6 +198,7 @@ export const DATA_DIR = resolveDefaultDataDir();
 export const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
 export const CACHE_FILE = join(DATA_DIR, 'trajectory_usage_cache.json');
 export const REMOTE_CATALOG_CACHE_FILE = join(DATA_DIR, 'remote_pricing_cache.json');
+export const SESSION_QUOTA_LEDGER_FILE = join(DATA_DIR, 'session_quota_ledger.json');
 export const CLI_STATUS_SNAPSHOT_FILE = join(DATA_DIR, 'cli-status-snapshot.json');
 
 /**
@@ -317,6 +318,8 @@ export function saveJson(filePath, data) {
     mkdirSync(dirname(filePath), { recursive: true });
     if (filePath === CACHE_FILE) {
       writeTrajectoryCacheFile(filePath, data);
+    } else if (filePath === SESSION_QUOTA_LEDGER_FILE) {
+      writeFileSync(filePath, JSON.stringify(data), 'utf8');
     } else {
       writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
     }

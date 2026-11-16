@@ -34,9 +34,17 @@ export function createFourSegmentBar() {
 
   /**
    * 根据四类 Token 数量重新计算并写入各分段百分比宽度。
+   * 当传入正数 `scaleMax` 时，整条柱按总和相对 `scaleMax` 等比缩放，用于多会话横向长度对比。
    */
-  function update({ inputTokens = 0, cacheReadTokens = 0, responseTokens = 0, thinkingTokens = 0 }) {
-    const total = Math.max(1, inputTokens + cacheReadTokens + responseTokens + thinkingTokens);
+  function update({
+    inputTokens = 0,
+    cacheReadTokens = 0,
+    responseTokens = 0,
+    thinkingTokens = 0,
+    scaleMax = 0,
+  }) {
+    const sumTok = inputTokens + cacheReadTokens + responseTokens + thinkingTokens;
+    const total = scaleMax > 0 ? Math.max(1, scaleMax, sumTok) : Math.max(1, sumTok);
     patchStyleVar(segInput, '--seg-w', `${((inputTokens / total) * 100).toFixed(2)}%`);
     patchStyleVar(segCached, '--seg-w', `${((cacheReadTokens / total) * 100).toFixed(2)}%`);
     patchStyleVar(segOutput, '--seg-w', `${((responseTokens / total) * 100).toFixed(2)}%`);

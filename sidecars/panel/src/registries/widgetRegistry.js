@@ -9,11 +9,13 @@ import { ContextWindowWidget } from '../components/widgets/ContextWindowWidget.j
 import { LiveActivityWidget } from '../components/widgets/LiveActivityWidget.js';
 import { MetricMatrixWidget } from '../components/widgets/MetricMatrixWidget.js';
 import { QuotaPoolsWidget } from '../components/widgets/QuotaPoolsWidget.js';
+import { SessionUsedQuotaWidget } from '../components/widgets/SessionUsedQuotaWidget.js';
 import { t } from '../i18n/index.js';
 
 export const OVERVIEW_WIDGET_KEYS = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -35,6 +37,14 @@ export const OVERVIEW_WIDGET_REGISTRY = Object.freeze({
         preview,
         getCtxAgentId,
         setCtxAgentId,
+      }),
+  },
+  used_quotas: {
+    key: 'used_quotas',
+    labelKey: 'module.used_quotas',
+    create: ({ mode }) =>
+      SessionUsedQuotaWidget({
+        compactHover: mode === 'hover',
       }),
   },
   quotas: {

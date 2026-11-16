@@ -563,7 +563,7 @@ export const SettingsStructureTab = defineComponent({
       items: draftOverviewModules,
       options: getOverviewModuleOptions(),
       minItems: 1,
-      maxItems: 4,
+      maxItems: getOverviewModuleOptions().length,
       addBtnTextFn: (count, max) => t('settings.str.addOverviewModule', { count, max }),
       onPreview: (previewItems) => {
         draftOverviewModules = normalizeClientOverviewModules(previewItems);

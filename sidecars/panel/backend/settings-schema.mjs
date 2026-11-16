@@ -44,6 +44,7 @@ export const MAX_TOPBAR_SLOTS = 5;
 export const OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -51,6 +52,7 @@ export const OVERVIEW_MODULE_KEYS = Object.freeze([
 export const DEFAULT_OVERVIEW_MODULES = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);

@@ -92,6 +92,7 @@ export const I18N_MESSAGES_EN_US = Object.freeze({
   // Live Overview & Widgets
   'module.metrics': 'Live Metrics',
   'module.context': 'Context Window',
+  'module.used_quotas': 'Used Quotas',
   'module.quotas': 'Available Quotas',
   'module.live_tasks': 'Live Running Tasks',
 
@@ -175,6 +176,27 @@ export const I18N_MESSAGES_EN_US = Object.freeze({
   'quota.footTipCustom': 'Counted since Monday 00:00 local time',
   'quota.footTipCycle': 'Summed across each quota pool weekly reset window',
 
+  // Session Used Quotas Widget
+  'usedQuota.metaBadge': 'Session · {count} pool(s)',
+  'usedQuota.metaWithSubs': 'Session · {count} pool(s) (w/ subagents)',
+  'usedQuota.empty': 'No model calls in this session yet',
+  'usedQuota.poolTooltip':
+    '{pool} · Session {calls} calls · {tok} ({cost})\nAttribution: accumulated from live quota deltas; pre-tracking in-cycle usage is conservatively estimated by weight.',
+  'usedQuota.win5hTitle': '5h Quota ({pool})',
+  'usedQuota.winWkTitle': 'Weekly ({pool})',
+  'usedQuota.winFallbackTitle': 'Quota ({pool})',
+  'usedQuota.pctUntracked': '--% (untracked)',
+  'usedQuota.pctNoCycle': '--% (no cycle data)',
+  'usedQuota.pctObserved': 'Observed {pct}%',
+  'usedQuota.pctMixed': '~{pct}% (obs. {obs}%)',
+  'usedQuota.pctEstimated': 'Est. {pct}%',
+  'usedQuota.pctUsed': 'Used {pct}%',
+  'usedQuota.callsInline': '{calls} calls',
+  'usedQuota.footTotal': 'Session Spent: {tok} ({cost})',
+  'usedQuota.footCalls': '{calls} calls total',
+  'usedQuota.footCallsSub': '{calls} calls total · main+sub',
+  'usedQuota.footCallsUnknown': '{calls} calls total ({unk} unclassified)',
+
   // Live Activity Widget
   'live.currentSession': 'Current Session',
   'live.switchSessionTitle': 'Switch monitor to session: {title}',
@@ -228,6 +250,28 @@ export const I18N_MESSAGES_EN_US = Object.freeze({
   'cons.footOutput': 'Out ',
   'cons.footThinking': 'Think ',
   'cons.footCalls': 'Calls ',
+
+  // Consumption View - Session Comparison
+  'cons.convTitle': 'Session Comparison',
+  'cons.convEmpty': 'No session consumption in selected range',
+  'cons.convCount': '{count} sessions',
+  'cons.convCurrentBadge': 'Current',
+  'cons.convSubagents': '{count} subagents',
+  'cons.convSortAria': 'Sort sessions by',
+  'cons.convSortTokens': 'Tokens',
+  'cons.convSortCost': 'Cost',
+  'cons.convSortRecent': 'Recent',
+  'cons.convExpandMore': 'Show all ({count} sessions) ▾',
+  'cons.convCollapse': 'Collapse (top {count}) ▴',
+  'cons.convDefaultTitle': 'Session {id}',
+  'cons.convShareTooltip': '{pct}% of total tokens across all sessions in selected range',
+  'cons.convCostPending': 'Pending',
+  'cons.convSubShort': '{count} sub',
+  'cons.convRowTooltip': 'Total {tok} ({share}%) · Cost {cost} · {calls} calls',
+  'cons.convTooltipCache': 'Cache Hit {pct}%',
+  'cons.convTooltipModels': 'Top models: {models}',
+  'cons.convTooltipSource': 'Source: {source}',
+  'cons.convTooltipRecent': 'Last active: {time}',
 
   // Steps Detail View & Step Column Registry
   'steps.title': 'Step Records',

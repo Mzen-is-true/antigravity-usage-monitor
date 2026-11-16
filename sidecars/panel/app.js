@@ -364,6 +364,7 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   // Live Overview & Widgets
   'module.metrics': '实时指标',
   'module.context': '上下文窗口',
+  'module.used_quotas': '已使用额度',
   'module.quotas': '可用额度',
   'module.live_tasks': '实时运行任务',
 
@@ -447,6 +448,27 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'quota.footTipCustom': '按本机自然周（周一 00:00 起）统计',
   'quota.footTipCycle': '按各配额池独立周限重置周期分别统计并汇总',
 
+  // Session Used Quotas Widget
+  'usedQuota.metaBadge': '本会话 · {count} 个分组',
+  'usedQuota.metaWithSubs': '本会话 · {count} 个分组 (含子代理)',
+  'usedQuota.empty': '本会话暂未产生模型调用',
+  'usedQuota.poolTooltip':
+    '{pool} · 本会话 {calls} 次调用 · {tok} ({cost})\n配额来源：实时运行期间基于官方配额扣减差值累加；插件未运行前的当期历史按占比保守估算。',
+  'usedQuota.win5hTitle': '5h 限额 ({pool})',
+  'usedQuota.winWkTitle': '每周限额 ({pool})',
+  'usedQuota.winFallbackTitle': '限额 ({pool})',
+  'usedQuota.pctUntracked': '--% (未追踪)',
+  'usedQuota.pctNoCycle': '--% (未获取周期)',
+  'usedQuota.pctObserved': '实测 {pct}%',
+  'usedQuota.pctMixed': '约 {pct}% (测{obs}%)',
+  'usedQuota.pctEstimated': '估算 {pct}%',
+  'usedQuota.pctUsed': '已用 {pct}%',
+  'usedQuota.callsInline': '{calls}次',
+  'usedQuota.footTotal': '本会话消耗: {tok} ({cost})',
+  'usedQuota.footCalls': '共调用 {calls} 次',
+  'usedQuota.footCallsSub': '共调用 {calls} 次 · 主+子',
+  'usedQuota.footCallsUnknown': '共调用 {calls} 次 (未归类 {unk})',
+
   // Live Activity Widget
   'live.currentSession': '当前会话',
   'live.switchSessionTitle': '点击切换查看会话：{title}',
@@ -500,6 +522,28 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'cons.footOutput': '输出 ',
   'cons.footThinking': '思考 ',
   'cons.footCalls': '调用 ',
+
+  // Consumption View - Session Comparison
+  'cons.convTitle': '会话消耗对比',
+  'cons.convEmpty': '所选时间段暂无会话消耗数据',
+  'cons.convCount': '{count} 个会话',
+  'cons.convCurrentBadge': '当前',
+  'cons.convSubagents': '含 {count} 子代理',
+  'cons.convSortAria': '会话排序方式',
+  'cons.convSortTokens': 'Token',
+  'cons.convSortCost': '费用',
+  'cons.convSortRecent': '最近',
+  'cons.convExpandMore': '展开全部 ({count} 个会话) ▾',
+  'cons.convCollapse': '收起（仅显示前 {count} 个）▴',
+  'cons.convDefaultTitle': '会话 {id}',
+  'cons.convShareTooltip': '占所选时段全部会话 Token 总量的 {pct}%',
+  'cons.convCostPending': '待定',
+  'cons.convSubShort': '{count}子',
+  'cons.convRowTooltip': '总计 {tok} ({share}%) · 费用 {cost} · {calls} 次调用',
+  'cons.convTooltipCache': '缓存命中率 {pct}%',
+  'cons.convTooltipModels': '常用模型: {models}',
+  'cons.convTooltipSource': '来源: {source}',
+  'cons.convTooltipRecent': '最近活跃: {time}',
 
   // Steps Detail View & Step Column Registry
   'steps.title': '调用记录',
@@ -888,6 +932,7 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   // Live Overview & Widgets
   'module.metrics': 'Live Metrics',
   'module.context': 'Context Window',
+  'module.used_quotas': 'Used Quotas',
   'module.quotas': 'Available Quotas',
   'module.live_tasks': 'Live Running Tasks',
 
@@ -971,6 +1016,27 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'quota.footTipCustom': 'Counted since Monday 00:00 local time',
   'quota.footTipCycle': 'Summed across each quota pool weekly reset window',
 
+  // Session Used Quotas Widget
+  'usedQuota.metaBadge': 'Session · {count} pool(s)',
+  'usedQuota.metaWithSubs': 'Session · {count} pool(s) (w/ subagents)',
+  'usedQuota.empty': 'No model calls in this session yet',
+  'usedQuota.poolTooltip':
+    '{pool} · Session {calls} calls · {tok} ({cost})\nAttribution: accumulated from live quota deltas; pre-tracking in-cycle usage is conservatively estimated by weight.',
+  'usedQuota.win5hTitle': '5h Quota ({pool})',
+  'usedQuota.winWkTitle': 'Weekly ({pool})',
+  'usedQuota.winFallbackTitle': 'Quota ({pool})',
+  'usedQuota.pctUntracked': '--% (untracked)',
+  'usedQuota.pctNoCycle': '--% (no cycle data)',
+  'usedQuota.pctObserved': 'Observed {pct}%',
+  'usedQuota.pctMixed': '~{pct}% (obs. {obs}%)',
+  'usedQuota.pctEstimated': 'Est. {pct}%',
+  'usedQuota.pctUsed': 'Used {pct}%',
+  'usedQuota.callsInline': '{calls} calls',
+  'usedQuota.footTotal': 'Session Spent: {tok} ({cost})',
+  'usedQuota.footCalls': '{calls} calls total',
+  'usedQuota.footCallsSub': '{calls} calls total · main+sub',
+  'usedQuota.footCallsUnknown': '{calls} calls total ({unk} unclassified)',
+
   // Live Activity Widget
   'live.currentSession': 'Current Session',
   'live.switchSessionTitle': 'Switch monitor to session: {title}',
@@ -1024,6 +1090,28 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'cons.footOutput': 'Out ',
   'cons.footThinking': 'Think ',
   'cons.footCalls': 'Calls ',
+
+  // Consumption View - Session Comparison
+  'cons.convTitle': 'Session Comparison',
+  'cons.convEmpty': 'No session consumption in selected range',
+  'cons.convCount': '{count} sessions',
+  'cons.convCurrentBadge': 'Current',
+  'cons.convSubagents': '{count} subagents',
+  'cons.convSortAria': 'Sort sessions by',
+  'cons.convSortTokens': 'Tokens',
+  'cons.convSortCost': 'Cost',
+  'cons.convSortRecent': 'Recent',
+  'cons.convExpandMore': 'Show all ({count} sessions) ▾',
+  'cons.convCollapse': 'Collapse (top {count}) ▴',
+  'cons.convDefaultTitle': 'Session {id}',
+  'cons.convShareTooltip': '{pct}% of total tokens across all sessions in selected range',
+  'cons.convCostPending': 'Pending',
+  'cons.convSubShort': '{count} sub',
+  'cons.convRowTooltip': 'Total {tok} ({share}%) · Cost {cost} · {calls} calls',
+  'cons.convTooltipCache': 'Cache Hit {pct}%',
+  'cons.convTooltipModels': 'Top models: {models}',
+  'cons.convTooltipSource': 'Source: {source}',
+  'cons.convTooltipRecent': 'Last active: {time}',
 
   // Steps Detail View & Step Column Registry
   'steps.title': 'Step Records',
@@ -2671,6 +2759,7 @@ const DEFAULT_CLIENT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
 const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -2678,6 +2767,7 @@ const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
 const DEFAULT_CLIENT_OVERVIEW_MODULES = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -2885,7 +2975,7 @@ function normalizeClientOverviewModules(raw) {
     allowedKeys: CLIENT_OVERVIEW_MODULE_KEYS,
     defaultItems: DEFAULT_CLIENT_OVERVIEW_MODULES,
     minLen: 1,
-    maxLen: 4,
+    maxLen: CLIENT_OVERVIEW_MODULE_KEYS.length,
   });
 }
 
@@ -3444,6 +3534,44 @@ function isEquivalentTelemetry(prev, next) {
       pPools[i]?.cycleWeekly?.tokens !== nPools[i]?.cycleWeekly?.tokens ||
       pPools[i]?.cycleWeekly?.costUsd !== nPools[i]?.cycleWeekly?.costUsd ||
       pPools[i]?.cycleWeekly?.calls !== nPools[i]?.cycleWeekly?.calls
+    ) {
+      return false;
+    }
+  }
+
+  if (prev.quotas?.sessionUsed?.cascadeId !== next.quotas?.sessionUsed?.cascadeId) return false;
+  if (prev.quotas?.sessionUsed?.totalTokens !== next.quotas?.sessionUsed?.totalTokens) return false;
+  if (prev.quotas?.sessionUsed?.totalCalls !== next.quotas?.sessionUsed?.totalCalls) return false;
+  if (prev.quotas?.sessionUsed?.totalCostUsd !== next.quotas?.sessionUsed?.totalCostUsd) return false;
+  const pSessPools = prev.quotas?.sessionUsed?.pools || [];
+  const nSessPools = next.quotas?.sessionUsed?.pools || [];
+  if (pSessPools.length !== nSessPools.length) return false;
+  for (let i = 0; i < pSessPools.length; i++) {
+    if (
+      pSessPools[i]?.poolKey !== nSessPools[i]?.poolKey ||
+      pSessPools[i]?.calls !== nSessPools[i]?.calls ||
+      pSessPools[i]?.totalTokens !== nSessPools[i]?.totalTokens ||
+      pSessPools[i]?.used5hPct !== nSessPools[i]?.used5hPct ||
+      pSessPools[i]?.source5h !== nSessPools[i]?.source5h ||
+      pSessPools[i]?.usedWeeklyPct !== nSessPools[i]?.usedWeeklyPct ||
+      pSessPools[i]?.sourceWeekly !== nSessPools[i]?.sourceWeekly
+    ) {
+      return false;
+    }
+  }
+
+  const pConsConvs = prev.consumption?.conversationsBreakdown || [];
+  const nConsConvs = next.consumption?.conversationsBreakdown || [];
+  if (pConsConvs.length !== nConsConvs.length) return false;
+  for (let i = 0; i < pConsConvs.length; i++) {
+    if (
+      pConsConvs[i]?.cascadeId !== nConsConvs[i]?.cascadeId ||
+      pConsConvs[i]?.totalTokens !== nConsConvs[i]?.totalTokens ||
+      pConsConvs[i]?.costUsd !== nConsConvs[i]?.costUsd ||
+      pConsConvs[i]?.calls !== nConsConvs[i]?.calls ||
+      pConsConvs[i]?.lastActivityMs !== nConsConvs[i]?.lastActivityMs ||
+      pConsConvs[i]?.isCurrent !== nConsConvs[i]?.isCurrent ||
+      pConsConvs[i]?.title !== nConsConvs[i]?.title
     ) {
       return false;
     }
@@ -5216,9 +5344,17 @@ function createFourSegmentBar() {
 
   /**
    * 根据四类 Token 数量重新计算并写入各分段百分比宽度。
+   * 当传入正数 `scaleMax` 时，整条柱按总和相对 `scaleMax` 等比缩放，用于多会话横向长度对比。
    */
-  function update({ inputTokens = 0, cacheReadTokens = 0, responseTokens = 0, thinkingTokens = 0 }) {
-    const total = Math.max(1, inputTokens + cacheReadTokens + responseTokens + thinkingTokens);
+  function update({
+    inputTokens = 0,
+    cacheReadTokens = 0,
+    responseTokens = 0,
+    thinkingTokens = 0,
+    scaleMax = 0,
+  }) {
+    const sumTok = inputTokens + cacheReadTokens + responseTokens + thinkingTokens;
+    const total = scaleMax > 0 ? Math.max(1, scaleMax, sumTok) : Math.max(1, sumTok);
     patchStyleVar(segInput, '--seg-w', `${((inputTokens / total) * 100).toFixed(2)}%`);
     patchStyleVar(segCached, '--seg-w', `${((cacheReadTokens / total) * 100).toFixed(2)}%`);
     patchStyleVar(segOutput, '--seg-w', `${((responseTokens / total) * 100).toFixed(2)}%`);
@@ -9901,6 +10037,261 @@ const QuotaPoolsWidget = defineComponent({
   },
 });
 
+// --- src/components/widgets/SessionUsedQuotaWidget.js ---
+/**
+ * @fileoverview Standalone decoupled Session Used Quota Widget (`SessionUsedQuotaWidget.js`).
+ * Displays quota consumed per quota pool by the active session (including subagents),
+ * omitting any unused quota groups, styled to match `QuotaPoolsWidget`.
+ */
+
+
+/**
+ * 构建当前会话「已使用额度」展示项列表（仅包含本会话实际调用过的配额分组，未使用的分组绝不列出）。
+ *
+ * @param {object|null|undefined} sessionUsed
+ * @returns {Array<object>}
+ */
+function buildSessionUsedQuotaItems(sessionUsed) {
+  const rawPools = Array.isArray(sessionUsed?.pools) ? sessionUsed.pools : [];
+  return rawPools
+    .filter((p) => Number(p?.calls || 0) > 0 || Number(p?.totalTokens || 0) > 0)
+    .map((p) => ({
+      key: p.poolKey || p.family || p.poolLabel || 'Other',
+      poolLabel: p.poolLabel || p.family || p.poolKey || 'Other',
+      poolData: p,
+    }));
+}
+
+function formatUsedQuotaPctLabel(pct, source, observedPct) {
+  if (pct == null || !Number.isFinite(Number(pct))) {
+    return t('usedQuota.pctUntracked');
+  }
+  const num = Number(pct);
+  if (source === 'observed') return t('usedQuota.pctObserved', { pct: num.toFixed(1) });
+  if (source === 'mixed') {
+    return t('usedQuota.pctMixed', {
+      pct: num.toFixed(1),
+      obs: Number(observedPct || 0).toFixed(1),
+    });
+  }
+  if (source === 'estimated') return t('usedQuota.pctEstimated', { pct: num.toFixed(1) });
+  return t('usedQuota.pctUsed', { pct: num.toFixed(1) });
+}
+
+/**
+ * 同步当前会话在单个已使用配额池中的 5h 与每周消耗进度条（样式严格对齐 `syncPoolQuotaRow`）。
+ */
+function syncUsedPoolQuotaRow(refs, item, idx, rowEl) {
+  const { poolData, poolLabel } = item;
+  patchAttr(
+    rowEl,
+    'style',
+    idx === 0
+      ? 'display: flex; flex-direction: column; gap: 8px;'
+      : 'display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-hairline);'
+  );
+
+  const has5h = Boolean(poolData?.has5h);
+  const hasWk = Boolean(poolData?.hasWeekly);
+  const show5h = has5h;
+  const showWk = hasWk || !has5h;
+
+  refs.row5h.hidden = !show5h;
+  refs.row5h.style.display = show5h ? 'flex' : 'none';
+  refs.rowWk.hidden = !showWk;
+  refs.rowWk.style.display = showWk ? 'flex' : 'none';
+  refs.usage5h.hidden = true;
+  refs.usageWk.hidden = true;
+
+  const calls = Number(poolData?.calls || 0);
+  const totalTok = Number(poolData?.totalTokens || 0);
+  const costUsd =
+    poolData?.unpricedCalls > 0 && poolData?.costUsd === 0 ? null : (poolData?.costUsd ?? 0);
+
+  patchAttr(
+    rowEl,
+    'title',
+    t('usedQuota.poolTooltip', {
+      pool: poolLabel,
+      calls,
+      tok: formatTokens(totalTok),
+      cost: formatUsd(costUsd),
+    })
+  );
+
+  if (show5h) {
+    const pct5hRaw = poolData?.used5hPct;
+    const hasPct5h = pct5hRaw != null && Number.isFinite(Number(pct5hRaw));
+    const pct5hVal = hasPct5h ? Math.max(0, Number(pct5hRaw)) : 0;
+    const pctText5h = formatUsedQuotaPctLabel(pct5hRaw, poolData?.source5h, poolData?.observed5hPct);
+    const tok5h =
+      hasWk && Number(poolData?.win5hCalls || 0) > 0
+        ? Number(poolData.win5hTokens || 0)
+        : totalTok;
+    const cost5h =
+      hasWk && Number(poolData?.win5hCalls || 0) > 0
+        ? (poolData.win5hCostUsd ?? costUsd)
+        : costUsd;
+
+    patchText(refs.title5h, t('usedQuota.win5hTitle', { pool: poolLabel }));
+    patchText(
+      refs.meta5h,
+      hasWk
+        ? `${pctText5h} · ${formatTokens(tok5h)} (${formatUsd(cost5h)})`
+        : `${pctText5h} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+    );
+    const bar5hPct = hasPct5h && pct5hVal > 0 ? Math.min(100, Math.max(1.2, pct5hVal)) : 0;
+    patchStyleVar(refs.fill5h, '--fill-w', `${bar5hPct}%`);
+    patchClasses(refs.fill5h, {
+      'tone-warn': pct5hVal >= 60 && pct5hVal < 85,
+      'tone-danger': pct5hVal >= 85,
+    });
+  }
+
+  if (showWk) {
+    const isOfflineFallback = !has5h && !hasWk;
+    const pctWkRaw = isOfflineFallback ? null : poolData?.usedWeeklyPct;
+    const hasPctWk = pctWkRaw != null && Number.isFinite(Number(pctWkRaw));
+    const pctWkVal = hasPctWk ? Math.max(0, Number(pctWkRaw)) : 0;
+    const pctTextWk = isOfflineFallback
+      ? t('usedQuota.pctNoCycle')
+      : formatUsedQuotaPctLabel(pctWkRaw, poolData?.sourceWeekly, poolData?.observedWeeklyPct);
+
+    patchText(
+      refs.titleWk,
+      isOfflineFallback
+        ? t('usedQuota.winFallbackTitle', { pool: poolLabel })
+        : t('usedQuota.winWkTitle', { pool: poolLabel })
+    );
+    patchText(
+      refs.metaWk,
+      `${pctTextWk} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+    );
+    const barWkPct = hasPctWk && pctWkVal > 0 ? Math.min(100, Math.max(1.2, pctWkVal)) : 0;
+    patchStyleVar(refs.fillWk, '--fill-w', `${barWkPct}%`);
+    patchClasses(refs.fillWk, {
+      'tone-warn': pctWkVal >= 60 && pctWkVal < 85,
+      'tone-danger': pctWkVal >= 85,
+    });
+  }
+}
+
+function usedQuotaPoolRowSig(item, idx) {
+  const p = item.poolData || {};
+  return `${getEffectiveLocale()}:${idx}:${item.key}:${item.poolLabel}:${p.calls}:${p.totalTokens}:${p.costUsd}:${p.unpricedCalls}:${Boolean(p.has5h)}:${Boolean(p.hasWeekly)}:${p.used5hPct}:${p.observed5hPct}:${p.source5h}:${p.win5hTokens}:${p.win5hCostUsd}:${p.win5hCalls}:${p.usedWeeklyPct}:${p.observedWeeklyPct}:${p.sourceWeekly}`;
+}
+
+const SessionUsedQuotaWidget = defineComponent({
+  name: 'SessionUsedQuotaWidget',
+  setup({ props }) {
+    const compactHover = Boolean(props.compactHover);
+    const titleTextEl = h('span', { text: t('module.used_quotas') });
+    const usedMetaBadge = h('span', {
+      className: 'panel-meta',
+      text: t('usedQuota.metaBadge', { count: 0 }),
+    });
+    const usedEmptyEl = h('div', {
+      className: 'text-muted',
+      style: 'font-size: var(--fs-md); padding: 2px 0;',
+      text: t('usedQuota.empty'),
+    });
+    const usedPoolsListEl = h(
+      'div',
+      compactHover
+        ? { className: 'wm-hover-quota-pools', hidden: true }
+        : { style: 'display: flex; flex-direction: column; gap: 0;', hidden: true }
+    );
+    const usedFootLeft = h('span', {
+      className: 'text-muted',
+      text: t('usedQuota.footTotal', { tok: '0', cost: '$0.00' }),
+    });
+    const usedFootRight = h('span', {
+      className: 'text-muted',
+      text: t('usedQuota.footCalls', { calls: 0 }),
+    });
+
+    const panel = h('section', { className: 'panel' }, [
+      h('div', { className: 'panel-header' }, [
+        h('span', { className: 'panel-title' }, [
+          createSvgIcon('pulse', { size: 13 }),
+          titleTextEl,
+        ]),
+        usedMetaBadge,
+      ]),
+      usedEmptyEl,
+      usedPoolsListEl,
+      h(
+        'div',
+        compactHover
+          ? { className: 'panel-header wm-hover-quota-foot' }
+          : { className: 'panel-header', style: 'font-size: var(--fs-md); padding-top: 2px;' },
+        [usedFootLeft, usedFootRight]
+      ),
+    ]);
+
+    function update({ data } = {}) {
+      patchText(titleTextEl, t('module.used_quotas'));
+      patchText(usedEmptyEl, t('usedQuota.empty'));
+      if (!data) {
+        return;
+      }
+
+      const quotas = data.quotas || {};
+      const active = data.activeConversation || {};
+      const hasSubagents = Boolean(active.hasSubagents);
+      const sessionUsed = quotas.sessionUsed || {};
+      const usedPoolItems = buildSessionUsedQuotaItems(sessionUsed);
+      const hasUsedPools = usedPoolItems.length > 0;
+
+      patchAttr(usedEmptyEl, 'hidden', hasUsedPools);
+      patchAttr(usedPoolsListEl, 'hidden', !hasUsedPools);
+      patchText(
+        usedMetaBadge,
+        hasUsedPools && hasSubagents
+          ? t('usedQuota.metaWithSubs', { count: usedPoolItems.length })
+          : t('usedQuota.metaBadge', { count: usedPoolItems.length })
+      );
+
+      patchKeyedList(usedPoolsListEl, usedPoolItems, {
+        keyFn: (item) => item.key,
+        sigFn: usedQuotaPoolRowSig,
+        createRow: createPoolQuotaRow,
+        updateRow: syncUsedPoolQuotaRow,
+      });
+
+      const usedTotalTok =
+        Number(sessionUsed.totalTokens || 0) + Number(sessionUsed.unknownPoolTokens || 0);
+      const usedTotalCalls =
+        Number(sessionUsed.totalCalls || 0) + Number(sessionUsed.unknownPoolCalls || 0);
+      const usedTotalCost = active.sessionCostUsd ?? sessionUsed.totalCostUsd ?? 0;
+
+      patchText(
+        usedFootLeft,
+        t('usedQuota.footTotal', {
+          tok: formatTokens(usedTotalTok),
+          cost: formatUsd(usedTotalCost),
+        })
+      );
+      patchText(
+        usedFootRight,
+        sessionUsed.unknownPoolCalls > 0
+          ? t('usedQuota.footCallsUnknown', {
+              calls: usedTotalCalls,
+              unk: sessionUsed.unknownPoolCalls,
+            })
+          : hasSubagents
+            ? t('usedQuota.footCallsSub', { calls: usedTotalCalls })
+            : t('usedQuota.footCalls', { calls: usedTotalCalls })
+      );
+    }
+
+    return {
+      el: panel,
+      refs: { update, usedPoolsListEl },
+    };
+  },
+});
+
 // --- src/components/widgets/LiveActivityWidget.js ---
 /**
  * @fileoverview Standalone decoupled Live Running Tasks Widget (`LiveActivityWidget.js`).
@@ -10378,6 +10769,7 @@ const LiveActivityWidget = defineComponent({
 const OVERVIEW_WIDGET_KEYS = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -10399,6 +10791,14 @@ const OVERVIEW_WIDGET_REGISTRY = Object.freeze({
         preview,
         getCtxAgentId,
         setCtxAgentId,
+      }),
+  },
+  used_quotas: {
+    key: 'used_quotas',
+    labelKey: 'module.used_quotas',
+    create: ({ mode }) =>
+      SessionUsedQuotaWidget({
+        compactHover: mode === 'hover',
       }),
   },
   quotas: {
@@ -12102,6 +12502,39 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
         weeklyUsedPct: 48,
         weeklyRemainingPct: 52,
         weeklyResetTime: resetWkIso,
+      },
+      sessionUsed: {
+        cascadeId: 'mock-preview-conv',
+        totalCalls: 12,
+        totalTokens: 1754800,
+        totalCostUsd: 1.28,
+        unpricedCalls: 0,
+        unknownPoolCalls: 0,
+        unknownPoolTokens: 0,
+        pools: [
+          {
+            poolKey: 'Gemini',
+            poolLabel: 'Gemini',
+            family: 'Gemini',
+            calls: 12,
+            totalTokens: 1754800,
+            costUsd: 1.28,
+            unpricedCalls: 0,
+            has5h: true,
+            hasWeekly: true,
+            used5hPct: 4.5,
+            observed5hPct: 4.5,
+            estimated5hPct: 0,
+            source5h: 'observed',
+            win5hTokens: 1754800,
+            win5hCostUsd: 1.28,
+            win5hCalls: 12,
+            usedWeeklyPct: 1.8,
+            observedWeeklyPct: 1.8,
+            estimatedWeeklyPct: 0,
+            sourceWeekly: 'observed',
+          },
+        ],
       },
       pools: [
         {
@@ -13896,7 +14329,7 @@ const SettingsStructureTab = defineComponent({
       items: draftOverviewModules,
       options: getOverviewModuleOptions(),
       minItems: 1,
-      maxItems: 4,
+      maxItems: getOverviewModuleOptions().length,
       addBtnTextFn: (count, max) => t('settings.str.addOverviewModule', { count, max }),
       onPreview: (previewItems) => {
         draftOverviewModules = normalizeClientOverviewModules(previewItems);
@@ -15740,6 +16173,25 @@ function getConsumptionTimeRangeOptions() {
   ];
 }
 
+function getConvSortOptions() {
+  return [
+    { value: 'tokens', label: t('cons.convSortTokens') },
+    { value: 'cost', label: t('cons.convSortCost') },
+    { value: 'recent', label: t('cons.convSortRecent') },
+  ];
+}
+
+const CONV_COLLAPSE_THRESHOLD = 30;
+
+function formatConvActivityTime(ms) {
+  const num = Number(ms || 0);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  const d = new Date(num);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const ConsumptionView = defineComponent({
   name: 'ConsumptionView',
   setup({ onCleanup }) {
@@ -16042,6 +16494,56 @@ const ConsumptionView = defineComponent({
       ]),
     ]);
 
+    // --- Section 6: 会话消耗对比 (所选时间段内所有会话 Token 与费用横向对比，位于月度统计最下方) ---
+    let convSortMode = 'tokens';
+    let convsExpanded = false;
+
+    const convTitleSpan = h('span', { text: t('cons.convTitle') });
+    const convRangeBadge = h('span', { className: 'cons-badge', text: t('cons.allTime') });
+    const convCountBadge = h('span', {
+      className: 'cons-badge text-mono',
+      text: t('cons.convCount', { count: 0 }),
+    });
+    const convSortSwitch = SegmentedControl({
+      ariaLabel: t('cons.convSortAria'),
+      modelValue: convSortMode,
+      options: getConvSortOptions(),
+      onUpdateModelValue: (nextSort) => {
+        convSortMode = nextSort || 'tokens';
+        if (latestSlice) renderConsumptionData(latestSlice);
+      },
+    });
+    const convEmptyEl = h('div', {
+      className: 'text-muted',
+      style: 'font-size: var(--fs-md); padding: 4px 0;',
+      text: t('cons.convEmpty'),
+    });
+    const conversationsListEl = h('div', { className: 'cons-item-list', hidden: true });
+    const convExpandBtn = h('button', {
+      type: 'button',
+      className: 'cons-conv-expand-btn',
+      hidden: true,
+      text: t('cons.convExpandMore', { count: 0 }),
+      onClick: () => {
+        convsExpanded = !convsExpanded;
+        if (latestSlice) renderConsumptionData(latestSlice);
+      },
+    });
+
+    const conversationsPanel = h('section', { className: 'panel' }, [
+      h('div', { className: 'panel-header cons-overview-head' }, [
+        h('span', { className: 'panel-title' }, [
+          convTitleSpan,
+          convRangeBadge,
+          convCountBadge,
+        ]),
+        convSortSwitch.el,
+      ]),
+      convEmptyEl,
+      conversationsListEl,
+      convExpandBtn,
+    ]);
+
     const scrollInner = h(
       'div',
       {
@@ -16053,6 +16555,7 @@ const ConsumptionView = defineComponent({
         modelsPanel,
         sourcesPanel,
         monthlyPanel,
+        conversationsPanel,
       ]
     );
 
@@ -16191,6 +16694,174 @@ const ConsumptionView = defineComponent({
       patchText(refs.callsVal, String(Number(item.calls || 0)));
     }
 
+    /**
+     * 创建单个会话消耗对比行 DOM 结构（含排名、标题、当前标识、占比胶囊、总量、费用、相对 4 段比较条及明细脚标）。
+     */
+    function createConversationCompareRow() {
+      const rankEl = h('span', { className: 'cons-rank-pill text-mono', text: '#1' });
+      const titleEl = h('strong', { className: 'cons-row-title cons-conv-title' });
+      const currentBadge = h('span', {
+        className: 'agent-badge badge-main',
+        hidden: true,
+        text: t('cons.convCurrentBadge'),
+      });
+      const pctBadge = h('span', { className: 'cons-share-pill text-mono', text: '0%' });
+      const totalTokEl = h('span', { className: 'cons-row-tok text-mono' });
+      const costEl = h('strong', { className: 'cons-row-cost text-mono' });
+      const segBar = createFourSegmentBar();
+
+      const inLbl = h('span', { text: t('cons.footInput') });
+      const cacheLbl = h('span', { text: t('cons.footCache') });
+      const outLbl = h('span', { text: t('cons.footOutput') });
+      const thinkLbl = h('span', { text: t('cons.footThinking') });
+      const callsLbl = h('span', { text: t('cons.footCalls') });
+
+      const inVal = h('strong', { className: 'text-mono' });
+      const cacheVal = h('strong', { className: 'text-mono' });
+      const outVal = h('strong', { className: 'text-mono' });
+      const thinkVal = h('strong', { className: 'text-mono' });
+      const callsVal = h('strong', { className: 'text-mono' });
+      const timeTagEl = h('span', { className: 'text-muted text-mono', hidden: true, text: '' });
+
+      const rowEl = h('div', { className: 'cons-item-row' }, [
+        h('div', { className: 'panel-header' }, [
+          h('div', { className: 'cons-conv-title-wrap' }, [rankEl, titleEl, currentBadge]),
+          h('span', { className: 'cons-row-metrics' }, [
+            pctBadge,
+            totalTokEl,
+            costEl,
+          ]),
+        ]),
+        segBar.el,
+        h('div', { className: 'cons-item-foot' }, [
+          h('span', { className: 'legend-left' }, [
+            h('span', { className: 'dot-swatch seg-input' }),
+            inLbl,
+            inVal,
+          ]),
+          h('span', { className: 'legend-left' }, [
+            h('span', { className: 'dot-swatch seg-cached' }),
+            cacheLbl,
+            cacheVal,
+          ]),
+          h('span', { className: 'legend-left' }, [
+            h('span', { className: 'dot-swatch seg-output' }),
+            outLbl,
+            outVal,
+          ]),
+          h('span', { className: 'legend-left' }, [
+            h('span', { className: 'dot-swatch seg-thinking' }),
+            thinkLbl,
+            thinkVal,
+          ]),
+          h('span', { className: 'legend-left' }, [
+            callsLbl,
+            callsVal,
+          ]),
+          timeTagEl,
+        ]),
+      ]);
+
+      return {
+        el: rowEl,
+        refs: {
+          rowEl,
+          rankEl,
+          titleEl,
+          currentBadge,
+          pctBadge,
+          totalTokEl,
+          costEl,
+          segBar,
+          inLbl,
+          cacheLbl,
+          outLbl,
+          thinkLbl,
+          callsLbl,
+          inVal,
+          cacheVal,
+          outVal,
+          thinkVal,
+          callsVal,
+          timeTagEl,
+        },
+      };
+    }
+
+    /**
+     * 增量更新单个会话消耗对比行（4 段条按峰值会话 Token `maxConvTokens` 等比缩放以便横向比对）。
+     */
+    function updateConversationCompareRow(refs, item, idx, grandTotalTokens, maxConvTokens) {
+      patchText(refs.inLbl, t('cons.footInput'));
+      patchText(refs.cacheLbl, t('cons.footCache'));
+      patchText(refs.outLbl, t('cons.footOutput'));
+      patchText(refs.thinkLbl, t('cons.footThinking'));
+      patchText(refs.callsLbl, t('cons.footCalls'));
+      patchText(refs.currentBadge, t('cons.convCurrentBadge'));
+
+      const shortFallback = String(item.cascadeId || '').slice(0, 8);
+      const displayTitle =
+        item.title || (shortFallback ? t('cons.convDefaultTitle', { id: shortFallback }) : '—');
+      patchText(refs.rankEl, `#${idx + 1}`);
+      patchText(refs.titleEl, displayTitle);
+      patchAttr(refs.titleEl, 'title', displayTitle);
+      patchAttr(refs.currentBadge, 'hidden', !item.isCurrent);
+
+      const total = Number(item.totalTokens || 0);
+      const share = grandTotalTokens > 0 ? +((total / grandTotalTokens) * 100).toFixed(1) : 0;
+      patchText(refs.pctBadge, `${share.toFixed(1)}%`);
+      patchAttr(refs.pctBadge, 'title', t('cons.convShareTooltip', { pct: share.toFixed(1) }));
+      patchText(refs.totalTokEl, formatTokensPrecise(total));
+      const costDisplay =
+        item.unpricedCalls > 0 && Number(item.costUsd || 0) === 0
+          ? t('cons.convCostPending')
+          : formatUsd(item.costUsd || 0);
+      patchText(refs.costEl, costDisplay);
+
+      const responseTok =
+        item.responseTokens != null
+          ? Number(item.responseTokens)
+          : Math.max(0, Number(item.outputTokens || 0) - Number(item.thinkingTokens || 0));
+      const thinkingTok = Number(item.thinkingTokens || 0);
+
+      refs.segBar.update({
+        inputTokens: Number(item.inputTokens || 0),
+        cacheReadTokens: Number(item.cacheReadTokens || 0),
+        responseTokens: responseTok,
+        thinkingTokens: thinkingTok,
+        scaleMax: maxConvTokens,
+      });
+
+      patchText(refs.inVal, formatTokensPrecise(item.inputTokens || 0));
+      patchText(refs.cacheVal, formatTokensPrecise(item.cacheReadTokens || 0));
+      patchText(refs.outVal, formatTokensPrecise(responseTok));
+      patchText(refs.thinkVal, formatTokensPrecise(thinkingTok));
+      patchText(refs.callsVal, String(Number(item.calls || 0)));
+
+      const actTime = formatConvActivityTime(item.lastActivityMs);
+      const subText = item.subagentCount > 0 ? t('cons.convSubShort', { count: item.subagentCount }) : '';
+      const timeMeta = [subText, actTime].filter(Boolean).join(' · ');
+      patchAttr(refs.timeTagEl, 'hidden', !timeMeta);
+      if (timeMeta) patchText(refs.timeTagEl, timeMeta);
+
+      const tooltipParts = [
+        displayTitle,
+        t('cons.convRowTooltip', {
+          tok: formatTokensPrecise(total),
+          share: share.toFixed(1),
+          cost: costDisplay,
+          calls: item.calls || 0,
+        }),
+        item.cacheHitPct != null
+          ? t('cons.convTooltipCache', { pct: Number(item.cacheHitPct).toFixed(1) })
+          : '',
+        item.models?.length ? t('cons.convTooltipModels', { models: item.models.join(', ') }) : '',
+        item.appSource ? t('cons.convTooltipSource', { source: item.appSource }) : '',
+        actTime ? t('cons.convTooltipRecent', { time: actTime }) : '',
+      ].filter(Boolean);
+      patchAttr(refs.rowEl, 'title', tooltipParts.join('\n'));
+    }
+
     let latestSlice = null;
     let isDirty = false;
 
@@ -16219,6 +16890,7 @@ const ConsumptionView = defineComponent({
         slice.showUpstreamModel, slice.orchestratorIdMode, dateSpan,
         preset?.label || rangeInfo.label, acct,
         cons.trendSeries, slice.modelBreakdown, cons.sourcesBreakdown,
+        cons.conversationsBreakdown, convSortMode, convsExpanded,
         monthlyYear, currentMonthIdx, cons.monthlySeries,
       ]);
       if (signature === lastRenderedUsage) return;
@@ -16411,6 +17083,60 @@ const ConsumptionView = defineComponent({
         }
       }
 
+      // 6. 同步所选时间段内所有会话 Token 消耗对比列表（位于月度统计最下方）
+      patchText(convRangeBadge, rangeBadgeText);
+      const rawConvs = Array.isArray(cons.conversationsBreakdown)
+        ? cons.conversationsBreakdown
+        : [];
+      const sortedConvs = rawConvs.slice().sort((a, b) => {
+        if (convSortMode === 'cost') {
+          return (
+            Number(b.costUsd || 0) - Number(a.costUsd || 0) ||
+            Number(b.totalTokens || 0) - Number(a.totalTokens || 0)
+          );
+        }
+        if (convSortMode === 'recent') {
+          return (
+            Number(b.lastActivityMs || 0) - Number(a.lastActivityMs || 0) ||
+            Number(b.totalTokens || 0) - Number(a.totalTokens || 0)
+          );
+        }
+        return (
+          Number(b.totalTokens || 0) - Number(a.totalTokens || 0) ||
+          Number(b.costUsd || 0) - Number(a.costUsd || 0)
+        );
+      });
+      const convGrandTotalTok = rawConvs.reduce((s, c) => s + Number(c.totalTokens || 0), 0);
+      const maxConvTok = Math.max(1, ...rawConvs.map((c) => Number(c.totalTokens || 0)));
+      const hasConvs = sortedConvs.length > 0;
+      const canCollapseConvs = sortedConvs.length > CONV_COLLAPSE_THRESHOLD;
+      const visibleConvs =
+        canCollapseConvs && !convsExpanded
+          ? sortedConvs.slice(0, CONV_COLLAPSE_THRESHOLD)
+          : sortedConvs;
+
+      patchText(convCountBadge, t('cons.convCount', { count: sortedConvs.length }));
+      patchAttr(convEmptyEl, 'hidden', hasConvs);
+      patchAttr(conversationsListEl, 'hidden', !hasConvs);
+      patchAttr(convExpandBtn, 'hidden', !canCollapseConvs);
+      if (canCollapseConvs) {
+        patchText(
+          convExpandBtn,
+          convsExpanded
+            ? t('cons.convCollapse', { count: CONV_COLLAPSE_THRESHOLD })
+            : t('cons.convExpandMore', { count: sortedConvs.length })
+        );
+      }
+
+      patchKeyedList(conversationsListEl, visibleConvs, {
+        keyFn: (c) => c.cascadeId,
+        sigFn: (c, idx) =>
+          `${localeSig}:${idx}:${c.cascadeId}:${c.title}:${Boolean(c.isCurrent)}:${c.totalTokens}:${c.costUsd}:${c.unpricedCalls}:${c.calls}:${c.lastActivityMs}:${c.subagentCount}:${maxConvTok}:${convGrandTotalTok}`,
+        createRow: createConversationCompareRow,
+        updateRow: (refs, c, idx) =>
+          updateConversationCompareRow(refs, c, idx, convGrandTotalTok, maxConvTok),
+      });
+
       viewScrollbar.refresh();
     }
 
@@ -16478,6 +17204,12 @@ const ConsumptionView = defineComponent({
       patchText(legCacheSpan, t('cons.legCache'));
       patchText(legOutputSpan, t('cons.legOutput'));
       patchText(legThinkingSpan, t('cons.legThinking'));
+      patchText(convTitleSpan, t('cons.convTitle'));
+      patchText(convEmptyEl, t('cons.convEmpty'));
+      convSortSwitch.setProps({
+        ariaLabel: t('cons.convSortAria'),
+        options: getConvSortOptions(),
+      });
     }
 
     const unsubI18n = i18nStore.subscribe(
@@ -16499,6 +17231,7 @@ const ConsumptionView = defineComponent({
       unsubI18n();
       trendChart.destroy?.();
       timeFilterSwitch.destroy();
+      convSortSwitch.destroy();
       startPicker.destroy();
       endPicker.destroy();
       viewScrollbar.destroy();

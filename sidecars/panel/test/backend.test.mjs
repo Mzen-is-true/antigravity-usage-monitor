@@ -970,7 +970,7 @@ test('preferences schema defaults match pre-refactor UI, migrate legacy none slo
   assert.equal(def.enableCliStatusLine, true);
   assert.deepEqual([...def.topbarCapsuleSlots], ['tps', 'ttft', 'context']);
   assert.deepEqual([...def.hoverModules], ['metrics', 'context', 'quotas']);
-  assert.deepEqual([...def.overviewModules], ['metrics', 'context', 'quotas', 'live_tasks']);
+  assert.deepEqual([...def.overviewModules], ['metrics', 'context', 'used_quotas', 'quotas', 'live_tasks']);
   assert.deepEqual([...def.overviewMetrics], ['tps', 'ttft', 'avg_tps', 'step_cost']);
   assert.equal(def.showStepTurnRail, false);
   assert.equal(def.showStepAgentBadge, true);

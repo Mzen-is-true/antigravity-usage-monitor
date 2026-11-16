@@ -92,6 +92,7 @@ export const I18N_MESSAGES_ZH_CN = Object.freeze({
   // Live Overview & Widgets
   'module.metrics': '实时指标',
   'module.context': '上下文窗口',
+  'module.used_quotas': '已使用额度',
   'module.quotas': '可用额度',
   'module.live_tasks': '实时运行任务',
 
@@ -175,6 +176,27 @@ export const I18N_MESSAGES_ZH_CN = Object.freeze({
   'quota.footTipCustom': '按本机自然周（周一 00:00 起）统计',
   'quota.footTipCycle': '按各配额池独立周限重置周期分别统计并汇总',
 
+  // Session Used Quotas Widget
+  'usedQuota.metaBadge': '本会话 · {count} 个分组',
+  'usedQuota.metaWithSubs': '本会话 · {count} 个分组 (含子代理)',
+  'usedQuota.empty': '本会话暂未产生模型调用',
+  'usedQuota.poolTooltip':
+    '{pool} · 本会话 {calls} 次调用 · {tok} ({cost})\n配额来源：实时运行期间基于官方配额扣减差值累加；插件未运行前的当期历史按占比保守估算。',
+  'usedQuota.win5hTitle': '5h 限额 ({pool})',
+  'usedQuota.winWkTitle': '每周限额 ({pool})',
+  'usedQuota.winFallbackTitle': '限额 ({pool})',
+  'usedQuota.pctUntracked': '--% (未追踪)',
+  'usedQuota.pctNoCycle': '--% (未获取周期)',
+  'usedQuota.pctObserved': '实测 {pct}%',
+  'usedQuota.pctMixed': '约 {pct}% (测{obs}%)',
+  'usedQuota.pctEstimated': '估算 {pct}%',
+  'usedQuota.pctUsed': '已用 {pct}%',
+  'usedQuota.callsInline': '{calls}次',
+  'usedQuota.footTotal': '本会话消耗: {tok} ({cost})',
+  'usedQuota.footCalls': '共调用 {calls} 次',
+  'usedQuota.footCallsSub': '共调用 {calls} 次 · 主+子',
+  'usedQuota.footCallsUnknown': '共调用 {calls} 次 (未归类 {unk})',
+
   // Live Activity Widget
   'live.currentSession': '当前会话',
   'live.switchSessionTitle': '点击切换查看会话：{title}',
@@ -228,6 +250,28 @@ export const I18N_MESSAGES_ZH_CN = Object.freeze({
   'cons.footOutput': '输出 ',
   'cons.footThinking': '思考 ',
   'cons.footCalls': '调用 ',
+
+  // Consumption View - Session Comparison
+  'cons.convTitle': '会话消耗对比',
+  'cons.convEmpty': '所选时间段暂无会话消耗数据',
+  'cons.convCount': '{count} 个会话',
+  'cons.convCurrentBadge': '当前',
+  'cons.convSubagents': '含 {count} 子代理',
+  'cons.convSortAria': '会话排序方式',
+  'cons.convSortTokens': 'Token',
+  'cons.convSortCost': '费用',
+  'cons.convSortRecent': '最近',
+  'cons.convExpandMore': '展开全部 ({count} 个会话) ▾',
+  'cons.convCollapse': '收起（仅显示前 {count} 个）▴',
+  'cons.convDefaultTitle': '会话 {id}',
+  'cons.convShareTooltip': '占所选时段全部会话 Token 总量的 {pct}%',
+  'cons.convCostPending': '待定',
+  'cons.convSubShort': '{count}子',
+  'cons.convRowTooltip': '总计 {tok} ({share}%) · 费用 {cost} · {calls} 次调用',
+  'cons.convTooltipCache': '缓存命中率 {pct}%',
+  'cons.convTooltipModels': '常用模型: {models}',
+  'cons.convTooltipSource': '来源: {source}',
+  'cons.convTooltipRecent': '最近活跃: {time}',
 
   // Steps Detail View & Step Column Registry
   'steps.title': '调用记录',

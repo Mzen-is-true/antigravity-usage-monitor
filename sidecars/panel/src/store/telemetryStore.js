@@ -128,6 +128,7 @@ export const DEFAULT_CLIENT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'contex
 export const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -135,6 +136,7 @@ export const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
 export const DEFAULT_CLIENT_OVERVIEW_MODULES = Object.freeze([
   'metrics',
   'context',
+  'used_quotas',
   'quotas',
   'live_tasks',
 ]);
@@ -342,7 +344,7 @@ export function normalizeClientOverviewModules(raw) {
     allowedKeys: CLIENT_OVERVIEW_MODULE_KEYS,
     defaultItems: DEFAULT_CLIENT_OVERVIEW_MODULES,
     minLen: 1,
-    maxLen: 4,
+    maxLen: CLIENT_OVERVIEW_MODULE_KEYS.length,
   });
 }
 
@@ -901,6 +903,44 @@ function isEquivalentTelemetry(prev, next) {
       pPools[i]?.cycleWeekly?.tokens !== nPools[i]?.cycleWeekly?.tokens ||
       pPools[i]?.cycleWeekly?.costUsd !== nPools[i]?.cycleWeekly?.costUsd ||
       pPools[i]?.cycleWeekly?.calls !== nPools[i]?.cycleWeekly?.calls
+    ) {
+      return false;
+    }
+  }
+
+  if (prev.quotas?.sessionUsed?.cascadeId !== next.quotas?.sessionUsed?.cascadeId) return false;
+  if (prev.quotas?.sessionUsed?.totalTokens !== next.quotas?.sessionUsed?.totalTokens) return false;
+  if (prev.quotas?.sessionUsed?.totalCalls !== next.quotas?.sessionUsed?.totalCalls) return false;
+  if (prev.quotas?.sessionUsed?.totalCostUsd !== next.quotas?.sessionUsed?.totalCostUsd) return false;
+  const pSessPools = prev.quotas?.sessionUsed?.pools || [];
+  const nSessPools = next.quotas?.sessionUsed?.pools || [];
+  if (pSessPools.length !== nSessPools.length) return false;
+  for (let i = 0; i < pSessPools.length; i++) {
+    if (
+      pSessPools[i]?.poolKey !== nSessPools[i]?.poolKey ||
+      pSessPools[i]?.calls !== nSessPools[i]?.calls ||
+      pSessPools[i]?.totalTokens !== nSessPools[i]?.totalTokens ||
+      pSessPools[i]?.used5hPct !== nSessPools[i]?.used5hPct ||
+      pSessPools[i]?.source5h !== nSessPools[i]?.source5h ||
+      pSessPools[i]?.usedWeeklyPct !== nSessPools[i]?.usedWeeklyPct ||
+      pSessPools[i]?.sourceWeekly !== nSessPools[i]?.sourceWeekly
+    ) {
+      return false;
+    }
+  }
+
+  const pConsConvs = prev.consumption?.conversationsBreakdown || [];
+  const nConsConvs = next.consumption?.conversationsBreakdown || [];
+  if (pConsConvs.length !== nConsConvs.length) return false;
+  for (let i = 0; i < pConsConvs.length; i++) {
+    if (
+      pConsConvs[i]?.cascadeId !== nConsConvs[i]?.cascadeId ||
+      pConsConvs[i]?.totalTokens !== nConsConvs[i]?.totalTokens ||
+      pConsConvs[i]?.costUsd !== nConsConvs[i]?.costUsd ||
+      pConsConvs[i]?.calls !== nConsConvs[i]?.calls ||
+      pConsConvs[i]?.lastActivityMs !== nConsConvs[i]?.lastActivityMs ||
+      pConsConvs[i]?.isCurrent !== nConsConvs[i]?.isCurrent ||
+      pConsConvs[i]?.title !== nConsConvs[i]?.title
     ) {
       return false;
     }

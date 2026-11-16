@@ -32,6 +32,7 @@ const BACKEND_MODULE_FILES = [
   '../backend/quota-pools.mjs',
   '../backend/local-scanner.mjs',
   '../backend/usage-aggregator.mjs',
+  '../backend/quota-ledger.mjs',
   '../backend/telemetry-builder.mjs',
   '../backend/window-bridge.mjs',
   '../backend/api-actions.mjs',
@@ -61,6 +62,7 @@ export function backendHarness({
   quotaSummary={groups:[]},
   localCatalog=DEFAULT_BUNDLED_CATALOG,
   remoteCatalog=null,
+  sessionQuotaLedger=null,
   pluginManifest=null,
   hasGitDir=false,
   pluginRootPath=null,
@@ -73,7 +75,7 @@ export function backendHarness({
   const mainUrl = pluginRootPath ? `file://${pluginRootPath}/sidecars/panel/main.mjs` : 'file:///test/sidecars/panel/main.mjs';
   const mainPath = pluginRootPath ? `${pluginRootPath}/sidecars/panel/main.mjs` : '/test/sidecars/panel/main.mjs';
   const source = stripEsmSyntax(sourceText ?? loadCombinedBackendSource(), mainUrl);
-  const state={calls:[],errors:[],saves:[],settings,trajectories,summaries,transcripts,transcriptMtimeMs:1,userStatus,quotaSummary,localCatalog,remoteCatalog,pluginManifest,hasGitDir,deepStats,deepStatsMtimeMs:1};
+  const state={calls:[],errors:[],saves:[],settings,trajectories,summaries,transcripts,transcriptMtimeMs:1,userStatus,quotaSummary,localCatalog,remoteCatalog,sessionQuotaLedger,pluginManifest,hasGitDir,deepStats,deepStatsMtimeMs:1};
   const ctx={
     ...metricsImplementation, URL, AbortSignal, Buffer, isDeepStrictEqual, randomUUID,
     ...(clock ? { Date: class extends Date {
@@ -96,6 +98,7 @@ export function backendHarness({
       if (norm.endsWith('/antigravity/brain/.deep_stats_cache.json')) return Boolean(state.deepStats);
       if (norm.endsWith('pricing-catalog.json')) return Boolean(state.localCatalog);
       if (norm.endsWith('remote_pricing_cache.json')) return Boolean(state.remoteCatalog);
+      if (norm.endsWith('session_quota_ledger.json')) return Boolean(state.sessionQuotaLedger);
       if (norm.endsWith('plugin.json')) return Boolean(state.pluginManifest);
       if (norm.endsWith('/.system_generated/logs/transcript.jsonl')) {
         const m = norm.match(/\/brain\/([^/]+)\/\.system_generated\/logs\/transcript\.jsonl$/i);
@@ -137,6 +140,7 @@ export function backendHarness({
       if (norm.endsWith('/antigravity/brain/.deep_stats_cache.json')) return JSON.stringify(state.deepStats);
       if (norm.endsWith('pricing-catalog.json')) return JSON.stringify(state.localCatalog);
       if (norm.endsWith('remote_pricing_cache.json')) return JSON.stringify(state.remoteCatalog);
+      if (norm.endsWith('session_quota_ledger.json')) return JSON.stringify(state.sessionQuotaLedger);
       if (norm.endsWith('plugin.json')) return JSON.stringify(state.pluginManifest);
       return JSON.stringify(cache);
     },
@@ -149,6 +153,9 @@ export function backendHarness({
       }
       if (norm.endsWith('remote_pricing_cache.json')) {
         state.remoteCatalog = parsed;
+      }
+      if (norm.endsWith('session_quota_ledger.json')) {
+        state.sessionQuotaLedger = parsed;
       }
     },
     writeTrajectoryCacheFile:(p,data)=>{
@@ -176,6 +183,6 @@ export function backendHarness({
       return {ok:true,json:async()=>data};
     },
   };
-  vm.runInNewContext(source+'\n globalThis.api={buildTelemetryPayloadInternal,executeTelemetryAction,computeStepCost,resolveModelInfo,inferFamilyFromProviderOrKey,isArgonModelIdentifier,isCarbonModelIdentifier,getBaseModelLabel,formatUpstreamModelId,PLACEHOLDER_MAP,normalizeQuotaFraction,classifyOfficialBucketWindow,classifyQuotaPoolIdentity,buildOfficialQuotaPools,resolveTimeWindow,sanitizeCatalogPayload,rebuildActiveCatalog,syncCloudCatalog,getCloudStatus,isValidSemver,compareSemver,performPluginUpdate,resolveMigratedGitRemoteUrl,loadSettings,executeSettingsAction,executeModelContextWindowAction,executeResetSettingsAction,executeRebuildCacheAction,clearRuntimeCaches,normalizeTopbarCapsuleSlots,normalizeHoverModules,normalizeOverviewModules,normalizeOverviewMetrics,normalizeStepTableColumns,normalizeStepTokenComboFormat,parseStepTokenComboSegments,normalizeModelDisplayMode,normalizePopoverWidthMode,normalizePopoverWidth,normalizeStandalonePort,setStandalonePortListener,parseAnnotationPbtxtTitle,buildCliStatusSnapshot,buildCliStatusLineCommand,isManagedCliStatusLineCommand,applyCliStatusLineToSettingsObject,cliDisplayWidth,parseCliModelAndEffort,formatCliStatusLineCapsule};',ctx);
+  vm.runInNewContext(source+'\n globalThis.api={buildTelemetryPayloadInternal,executeTelemetryAction,computeStepCost,resolveModelInfo,inferFamilyFromProviderOrKey,isArgonModelIdentifier,isCarbonModelIdentifier,getBaseModelLabel,formatUpstreamModelId,PLACEHOLDER_MAP,normalizeQuotaFraction,classifyOfficialBucketWindow,classifyQuotaPoolIdentity,buildOfficialQuotaPools,POOL_PRIORITY_ORDER,resolveStepQuotaPoolKey,collectAccountConversationEntries,updateLedgerAndBuildSessionUsedQuota,resetSessionQuotaLedgerCache,resolveTimeWindow,sanitizeCatalogPayload,rebuildActiveCatalog,syncCloudCatalog,getCloudStatus,isValidSemver,compareSemver,performPluginUpdate,resolveMigratedGitRemoteUrl,loadSettings,executeSettingsAction,executeModelContextWindowAction,executeResetSettingsAction,executeRebuildCacheAction,clearRuntimeCaches,normalizeTopbarCapsuleSlots,normalizeHoverModules,normalizeOverviewModules,normalizeOverviewMetrics,normalizeStepTableColumns,normalizeStepTokenComboFormat,parseStepTokenComboSegments,normalizeModelDisplayMode,normalizePopoverWidthMode,normalizePopoverWidth,normalizeStandalonePort,setStandalonePortListener,parseAnnotationPbtxtTitle,buildCliStatusSnapshot,buildCliStatusLineCommand,isManagedCliStatusLineCommand,applyCliStatusLineToSettingsObject,cliDisplayWidth,parseCliModelAndEffort,formatCliStatusLineCapsule};',ctx);
   return {...ctx.api,state};
 }

@@ -787,7 +787,7 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     enableCliStatusLine: true,
     topbarCapsuleSlots: ['tps', 'ttft', 'context'],
     hoverModules: ['metrics', 'context', 'quotas'],
-    overviewModules: ['metrics', 'context', 'quotas', 'live_tasks'],
+    overviewModules: ['metrics', 'context', 'used_quotas', 'quotas', 'live_tasks'],
     overviewMetrics: ['tps', 'ttft', 'avg_tps', 'step_cost'],
     stepTableColumns: ['step', 'model', 'tps', 'ttft', 'tokens_combo', 'cache', 'cost'],
     showStepTurnRail: false,
@@ -1909,13 +1909,15 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(sec1.hasAttribute('hidden'), true);
     assert.equal(sec2.hasAttribute('hidden'), false);
     const overviewPreviewHostEl = sec2.querySelector('.overview-modules-host');
-    assert.equal(overviewPreviewHostEl.children.length, 4, 'Overview preview mounts all 4 real overview widgets');
+    assert.equal(overviewPreviewHostEl.children.length, 5, 'Overview preview mounts all 5 real overview widgets');
 
     const [ovModWrap, ovMetricWrap] = sec2.querySelectorAll('.editable-slot-wrap');
-    // Move row 2 ('quotas') up above 'context' -> ['metrics', 'quotas', 'context', 'live_tasks']
+    // Move row 3 ('quotas') up twice above 'used_quotas' and 'context' -> ['metrics', 'quotas', 'context', 'used_quotas', 'live_tasks']
+    ovModWrap.querySelectorAll('.slot-move-btn')[9].dispatchEvent({ type: 'click', stopPropagation() {} });
+    await new Promise((r) => setTimeout(r, 20));
     ovModWrap.querySelectorAll('.slot-move-btn')[6].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
-    assert.deepEqual(mockSettings.overviewModules, ['metrics', 'quotas', 'context', 'live_tasks']);
+    assert.deepEqual(mockSettings.overviewModules, ['metrics', 'quotas', 'context', 'used_quotas', 'live_tasks']);
     // Remove 2 metrics from first-row matrix -> 2 columns ['tps', 'ttft']
     ovMetricWrap.querySelectorAll('.slot-remove-btn')[3].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 25));
@@ -1939,7 +1941,7 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     await new Promise((r) => setTimeout(r, 15));
     sec2.querySelector('.btn-ghost-sm').dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 40));
-    assert.deepEqual(mockSettings.overviewModules, ['metrics', 'context', 'quotas', 'live_tasks']);
+    assert.deepEqual(mockSettings.overviewModules, ['metrics', 'context', 'used_quotas', 'quotas', 'live_tasks']);
     assert.deepEqual(mockSettings.overviewMetrics, ['tps', 'ttft', 'avg_tps', 'step_cost']);
 
     // Pane 3 (3rd-level tab 'steps'): Step Table Columns (2..12) + real StepTableWidget preview
