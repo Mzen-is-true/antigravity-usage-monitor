@@ -685,8 +685,9 @@ export function createWindowBridgeController(options) {
     onVersionDrift = null,
     leaseFilePath = '',
     autoConfigureIdeArgv = options?.env === undefined && options?.homeDir === undefined,
-    WebSocketImpl = globalThis.WebSocket,
+    WebSocketImpl = null,
   } = options || {};
+  const customWebSocketImpl = typeof WebSocketImpl === 'function' ? WebSocketImpl : null;
 
   function isPidAlive(pid) {
     if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -1063,11 +1064,198 @@ export function createWindowBridgeController(options) {
     return { reachableCount, targets: merged };
   }
 
-  async function evaluateOnTarget(wsUrl, expression) {
-    const WS = WebSocketImpl || globalThis.WebSocket;
-    if (typeof WS !== 'function') {
-      throw new Error('WebSocket runtime unavailable');
+  function isLoopbackWsUrl(rawUrl) {
+    return /^ws:\/\/(127\.0\.0\.1|localhost|\[::1\]):\d+(?:\/|$)/i.test(String(rawUrl || '').trim());
+  }
+
+  function encodeMaskedWsFrame(cryptoMod, opcode, textOrBuf) {
+    const payload = Buffer.isBuffer(textOrBuf) ? textOrBuf : Buffer.from(String(textOrBuf || ''), 'utf8');
+    const len = payload.length;
+    let hdr;
+    if (len < 126) {
+      hdr = Buffer.from([0x80 | (opcode & 0x0f), 0x80 | len]);
+    } else if (len <= 65535) {
+      hdr = Buffer.allocUnsafe(4);
+      hdr[0] = 0x80 | (opcode & 0x0f);
+      hdr[1] = 0x80 | 126;
+      hdr.writeUInt16BE(len, 2);
+    } else {
+      hdr = Buffer.allocUnsafe(10);
+      hdr[0] = 0x80 | (opcode & 0x0f);
+      hdr[1] = 0x80 | 127;
+      hdr.writeUInt32BE(Math.floor(len / 4294967296), 2);
+      hdr.writeUInt32BE(len >>> 0, 6);
     }
+    const mask = cryptoMod.randomBytes(4);
+    const masked = Buffer.allocUnsafe(len);
+    for (let i = 0; i < len; i += 1) {
+      masked[i] = payload[i] ^ mask[i & 3];
+    }
+    return Buffer.concat([hdr, mask, masked]);
+  }
+
+  async function evaluateViaRawLoopbackWebSocket(wsUrl, expression) {
+    const { http, crypto } = await loadNodeDeps();
+    const parsed = new URL(wsUrl);
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+    const port = Number(parsed.port) || 80;
+    const pathWithQuery = `${parsed.pathname || '/'}${parsed.search || ''}`;
+    const wsKey = crypto.randomBytes(16).toString('base64');
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let sock = null;
+      let recvBuf = Buffer.alloc(0);
+      let msgChunks = [];
+      const timer = setTimeout(() => {
+        finish(new Error('CDP Runtime.evaluate timeout'));
+      }, cdpTimeoutMs);
+
+      function finish(err, value) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (sock) {
+          try {
+            sock.destroy();
+          } catch {
+            // 忽略 socket 销毁异常
+          }
+        }
+        if (err) reject(err);
+        else resolve(value);
+      }
+
+      const req = http.request({
+        hostname,
+        port,
+        path: pathWithQuery,
+        method: 'GET',
+        agent: false,
+        headers: {
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Version': '13',
+          'Sec-WebSocket-Key': wsKey,
+        },
+      });
+
+      req.on('error', (err) => finish(err));
+      req.on('response', (res) => {
+        res.resume();
+        finish(new Error(`CDP WebSocket upgrade rejected (${res.statusCode || 0})`));
+      });
+
+      function pumpFrames() {
+        while (recvBuf.length >= 2 && !settled) {
+          const b0 = recvBuf[0];
+          const b1 = recvBuf[1];
+          const fin = (b0 & 0x80) !== 0;
+          const opcode = b0 & 0x0f;
+          const isMasked = (b1 & 0x80) !== 0;
+          let len = b1 & 0x7f;
+          let offset = 2;
+
+          if (len === 126) {
+            if (recvBuf.length < offset + 2) break;
+            len = recvBuf.readUInt16BE(offset);
+            offset += 2;
+          } else if (len === 127) {
+            if (recvBuf.length < offset + 8) break;
+            len = recvBuf.readUInt32BE(offset) * 4294967296 + recvBuf.readUInt32BE(offset + 4);
+            offset += 8;
+          }
+
+          let maskKey = null;
+          if (isMasked) {
+            if (recvBuf.length < offset + 4) break;
+            maskKey = recvBuf.subarray(offset, offset + 4);
+            offset += 4;
+          }
+
+          if (recvBuf.length < offset + len) break;
+          let payload = recvBuf.subarray(offset, offset + len);
+          recvBuf = recvBuf.subarray(offset + len);
+
+          if (maskKey) {
+            const unmasked = Buffer.allocUnsafe(payload.length);
+            for (let i = 0; i < payload.length; i += 1) {
+              unmasked[i] = payload[i] ^ maskKey[i & 3];
+            }
+            payload = unmasked;
+          }
+
+          if (opcode === 0x8) {
+            finish(new Error('CDP WebSocket closed before response'));
+            return;
+          }
+          if (opcode === 0x9) {
+            try {
+              sock?.write(encodeMaskedWsFrame(crypto, 0x0a, payload));
+            } catch {
+              // 忽略 Pong 写入异常
+            }
+            continue;
+          }
+          if (opcode === 0xa) {
+            continue;
+          }
+          if (opcode === 0x1 || opcode === 0x0) {
+            msgChunks.push(payload);
+            if (fin) {
+              const rawText = Buffer.concat(msgChunks).toString('utf8');
+              msgChunks = [];
+              try {
+                const msg = JSON.parse(rawText);
+                if (msg && msg.id === 1) {
+                  finish(null, msg);
+                  return;
+                }
+              } catch {
+                // 忽略无关事件帧
+              }
+            }
+          }
+        }
+      }
+
+      req.on('upgrade', (_res, socket, head) => {
+        sock = socket;
+        sock.setNoDelay?.(true);
+        sock.on('error', (err) => finish(err));
+        sock.on('close', () => finish(new Error('CDP WebSocket socket closed')));
+        sock.on('data', (chunk) => {
+          recvBuf = recvBuf.length > 0 ? Buffer.concat([recvBuf, chunk]) : chunk;
+          pumpFrames();
+        });
+
+        try {
+          const cmd = JSON.stringify({
+            id: 1,
+            method: 'Runtime.evaluate',
+            params: {
+              expression,
+              returnByValue: true,
+              awaitPromise: true,
+            },
+          });
+          sock.write(encodeMaskedWsFrame(crypto, 0x1, cmd));
+        } catch (err) {
+          finish(err);
+          return;
+        }
+
+        if (head && head.length > 0) {
+          recvBuf = Buffer.concat([recvBuf, head]);
+          pumpFrames();
+        }
+      });
+
+      req.end();
+    });
+  }
+
+  async function evaluateWithWebSocketImpl(WS, wsUrl, expression) {
     let ws = null;
     let timer = null;
     try {
@@ -1126,6 +1314,26 @@ export function createWindowBridgeController(options) {
         }
       }
     }
+  }
+
+  async function evaluateOnTarget(wsUrl, expression) {
+    const WS = customWebSocketImpl || globalThis.WebSocket;
+    if (typeof WS === 'function') {
+      try {
+        return await evaluateWithWebSocketImpl(WS, wsUrl, expression);
+      } catch (err) {
+        // Node.js 24 内置 undici WebSocket 会按 WHATWG Fetch 规范拦截 6665-6669 等端口；
+        // 当无显式注入 Mock WebSocket 且目标为本机回环地址时，无缝降级为 node:http RFC 6455 直连。
+        if (!customWebSocketImpl && isLoopbackWsUrl(wsUrl)) {
+          return evaluateViaRawLoopbackWebSocket(wsUrl, expression);
+        }
+        throw err;
+      }
+    }
+    if (isLoopbackWsUrl(wsUrl)) {
+      return evaluateViaRawLoopbackWebSocket(wsUrl, expression);
+    }
+    throw new Error('WebSocket runtime unavailable');
   }
 
   async function runSyncInternal({ forceReinject = false } = {}) {

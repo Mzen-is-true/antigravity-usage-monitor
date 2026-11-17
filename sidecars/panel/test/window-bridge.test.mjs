@@ -5660,3 +5660,138 @@ test('v1.5 feedback E2E: sticky bridge port/token across hot-reloads, CDP->HTTP 
     ov.dispose();
   }
 });
+
+test('CDP raw node:http WebSocket fallback succeeds when globalThis.WebSocket rejects restricted ports (e.g. 6669)', async () => {
+  const { createHash } = await import('node:crypto');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-wb-rawws-'));
+  const dtFile = path.join(tmpDir, 'DevToolsActivePort');
+  const origWebSocket = globalThis.WebSocket;
+
+  const cdpServer = http.createServer((req, res) => {
+    if (req.url === '/json/list') {
+      const addr = cdpServer.address();
+      res.writeHead(200, { 'Content-Type': 'application/json', Connection: 'close' });
+      res.end(JSON.stringify([
+        {
+          id: 'main-badport',
+          type: 'page',
+          url: 'https://127.0.0.1:6671/c/12345678-1111-2222-3333-444455556666',
+          webSocketDebuggerUrl: `ws://127.0.0.1:${addr.port}/devtools/page/main-badport`,
+        },
+      ]));
+      return;
+    }
+    res.writeHead(404, { Connection: 'close' });
+    res.end();
+  });
+
+  const evaluated = [];
+  const upgradeSockets = new Set();
+  cdpServer.on('upgrade', (req, socket) => {
+    upgradeSockets.add(socket);
+    socket.on('close', () => upgradeSockets.delete(socket));
+    const key = String(req.headers['sec-websocket-key'] || '');
+    const accept = createHash('sha1')
+      .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest('base64');
+    socket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`
+    );
+
+    let buf = Buffer.alloc(0);
+    socket.on('data', (chunk) => {
+      buf = Buffer.concat([buf, chunk]);
+      while (buf.length >= 2) {
+        const b1 = buf[1];
+        const masked = (b1 & 0x80) !== 0;
+        let len = b1 & 0x7f;
+        let off = 2;
+        if (len === 126) {
+          if (buf.length < off + 2) return;
+          len = buf.readUInt16BE(off);
+          off += 2;
+        } else if (len === 127) {
+          if (buf.length < off + 8) return;
+          len = buf.readUInt32BE(off + 4);
+          off += 8;
+        }
+        const maskLen = masked ? 4 : 0;
+        if (buf.length < off + maskLen + len) return;
+        const mask = masked ? buf.subarray(off, off + 4) : null;
+        const rawPayload = buf.subarray(off + maskLen, off + maskLen + len);
+        buf = buf.subarray(off + maskLen + len);
+        const decoded = Buffer.allocUnsafe(rawPayload.length);
+        for (let i = 0; i < rawPayload.length; i += 1) {
+          decoded[i] = mask ? rawPayload[i] ^ mask[i & 3] : rawPayload[i];
+        }
+        const msg = JSON.parse(decoded.toString('utf8'));
+        evaluated.push(msg.params?.expression || '');
+        const isProbe = String(msg.params?.expression || '').includes('window.__AGUsageMonitorOverlay');
+        const reply = JSON.stringify({
+          id: msg.id,
+          result: {
+            result: {
+              value: isProbe && evaluated.length === 1
+                ? { alive: false, dockKind: '', visible: true, bundleVersion: '', bridgePort: 0, hasToken: false }
+                : { alive: true, dockKind: 'flow', visible: true },
+            },
+          },
+        });
+        const rBuf = Buffer.from(reply, 'utf8');
+        const rHdr = rBuf.length < 126
+          ? Buffer.from([0x81, rBuf.length])
+          : Buffer.from([0x81, 126, (rBuf.length >> 8) & 0xff, rBuf.length & 0xff]);
+        socket.write(Buffer.concat([rHdr, rBuf]));
+      }
+    });
+  });
+
+  await new Promise((r) => cdpServer.listen(0, '127.0.0.1', r));
+  const cdpAddr = cdpServer.address();
+  fs.writeFileSync(dtFile, `${cdpAddr.port}\n/devtools/browser/test\n`, 'utf8');
+
+  try {
+    // Mock globalThis.WebSocket rejecting with bad-port error (like Node 24 undici on port 6669)
+    globalThis.WebSocket = class BadPortWebSocket {
+      constructor() {
+        this._listeners = new Map();
+        queueMicrotask(() => {
+          for (const fn of this._listeners.get('error') || []) {
+            fn(new Error('bad port'));
+          }
+        });
+      }
+      addEventListener(type, fn) {
+        if (!this._listeners.has(type)) this._listeners.set(type, []);
+        this._listeners.get(type).push(fn);
+      }
+      close() {}
+    };
+
+    const controller = createWindowBridgeController({
+      env: { ANTIGRAVITY_DEVTOOLS_PORT_FILE: dtFile },
+      getSettingsFn: () => ({ windowMountMode: 'dual', enableWindowOverlay: true }),
+      handleApiRequest: async () => ({ status: 200, body: JSON.stringify({ ok: true }) }),
+      readAssetFn: async (rel) => (rel === 'styles.css' ? '/*css*/' : 'window.__AGUsageMonitorOverlay={ensureAlive:()=>true};'),
+      bootBundleVersion: 'v-test',
+      getBundleVersionFn: () => 'v-test',
+      pollIntervalMs: 60000,
+    });
+
+    const syncRes = await controller.syncAllWindows();
+    assert.equal(syncRes.ok, true);
+    assert.equal(syncRes.injected, 1, 'raw node:http WebSocket fallback must complete CDP injection when WebSocket errors');
+    assert.equal(evaluated.length, 2, 'runs probe + injection over raw node:http WebSocket');
+    await controller.stop();
+  } finally {
+    globalThis.WebSocket = origWebSocket;
+    for (const sock of upgradeSockets) {
+      try {
+        sock.destroy();
+      } catch {}
+    }
+    cdpServer.closeAllConnections?.();
+    await new Promise((r) => cdpServer.close(r));
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
