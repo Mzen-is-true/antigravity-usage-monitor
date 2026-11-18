@@ -11,7 +11,7 @@
  *    超出当前重置周期且无实测记录的早期历史会话严格返回 `usedPct: null` (`untracked`)，绝不伪造百分比。
  */
 
-import { parseIsoMs } from '../speed-metrics.mjs';
+import { parseIsoMs } from '../trajectory-metrics.mjs';
 import {
   SESSION_QUOTA_LEDGER_FILE,
   loadJson,
@@ -27,6 +27,10 @@ const RESET_JUMP_TOLERANCE_MS = 10 * 60_000;
 function ledgerSafeTok(val) {
   const n = Number(val);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+function ledgerNormalizeOwnerAccount(val) {
+  return typeof val === 'string' ? val.trim().toLowerCase() : '';
 }
 
 function roundCostVal(val) {
@@ -186,7 +190,9 @@ export function updateLedgerAndBuildSessionUsedQuota({
   }
 
   // 1. 全量扫描当前账号所有根会话（已归并子代理）在各配额池中的工作量与当前活跃会话分池消耗
-  const { entries } = collectAccountConversationEntries({ currentAccountName, familySet });
+  const normalizedQuotaAccount =
+    currentAccountName === null ? null : ledgerNormalizeOwnerAccount(currentAccountName);
+  const { entries } = collectAccountConversationEntries({ familySet });
   const poolStatsByConv = new Map();
   let activeUnknownPoolCalls = 0;
   let activeUnknownPoolTokens = 0;
@@ -194,6 +200,7 @@ export function updateLedgerAndBuildSessionUsedQuota({
   for (const entry of entries) {
     const cidLower = String(entry?.cascadeId || '').toLowerCase();
     if (!cidLower) continue;
+    const entryOwner = ledgerNormalizeOwnerAccount(entry.accountName);
     let convMap = poolStatsByConv.get(cidLower);
     if (!convMap) {
       convMap = new Map();
@@ -202,6 +209,15 @@ export function updateLedgerAndBuildSessionUsedQuota({
 
     for (const st of entry.steps || []) {
       if (!st || typeof st !== 'object') continue;
+      const stepOwner = ledgerNormalizeOwnerAccount(st.accountName) || entryOwner;
+      const includeInQuotaPools =
+        normalizedQuotaAccount === null
+          ? false
+          : normalizedQuotaAccount === ''
+            ? true
+            : stepOwner === normalizedQuotaAccount;
+      if (!includeInQuotaPools) continue;
+
       const inTok = ledgerSafeTok(st.inputTokens);
       const cacheTok = ledgerSafeTok(st.cacheReadTokens);
       const outTok = ledgerSafeTok(st.outputTokens);
@@ -224,7 +240,8 @@ export function updateLedgerAndBuildSessionUsedQuota({
               dynamicModelMap,
               st.apiProvider,
               st.modelDisplayName,
-              st.responseModel
+              st.responseModel,
+              st.createdAtMs || st.createdAt || 0
             );
       const stepCost = computeStepCost(st, mInfo.pricing);
       const resolvedCost = Number.isFinite(stepCost) ? stepCost : 0;
@@ -274,7 +291,7 @@ export function updateLedgerAndBuildSessionUsedQuota({
   const canInspectLiveQuotas = hasAnyAvailablePool && !officialQuotaInfo?.refreshFailed;
   const isFreshQuotaResponse = canInspectLiveQuotas && officialQuotaInfo?.fromCache === false;
 
-  const accountKey = currentAccountName || '__default__';
+  const accountKey = normalizedQuotaAccount || '__default__';
   const ledger = canInspectLiveQuotas ? getOrLoadQuotaLedger() : null;
   const acctState = ledger ? ensureAccountState(ledger, accountKey, nowMs) : null;
   let ledgerDirty = false;

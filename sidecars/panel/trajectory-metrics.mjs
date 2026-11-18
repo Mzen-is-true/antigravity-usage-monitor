@@ -1046,12 +1046,17 @@ export function inferCompactionStepModels(steps) {
       step.responseModel || (donorSameModel ? donor.responseModel || '' : '');
     const nextDisplayName =
       step.modelDisplayName || (donorSameModel ? donor.modelDisplayName || '' : '');
+    const nextMaxBudget =
+      !step.reportedContextLimitTokens && donor.maxContextBudgetTokens > 0
+        ? donor.maxContextBudgetTokens
+        : step.maxContextBudgetTokens;
 
     if (
       nextModelKey === step.modelKey &&
       nextModelSource === step.modelSource &&
       nextResponseModel === (step.responseModel || '') &&
-      nextDisplayName === (step.modelDisplayName || '')
+      nextDisplayName === (step.modelDisplayName || '') &&
+      nextMaxBudget === step.maxContextBudgetTokens
     ) {
       return step;
     }
@@ -1062,6 +1067,7 @@ export function inferCompactionStepModels(steps) {
       modelSource: nextModelSource,
       responseModel: nextResponseModel,
       modelDisplayName: nextDisplayName,
+      maxContextBudgetTokens: nextMaxBudget,
     };
   });
 }

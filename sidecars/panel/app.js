@@ -1,6 +1,150 @@
 (() => {
 'use strict';
 
+// --- shared/settings-normalization.mjs ---
+/**
+ * @fileoverview 前后端共用的偏好设置归一化规则。
+ */
+
+const TOPBAR_SLOT_KEYS = Object.freeze([
+  'context',
+  'tps',
+  'ttft',
+  'avg_tps',
+  'cost',
+  'session_cost',
+  'cache_hit',
+  'session_tokens',
+  'quota_auto',
+  'gemini_5h',
+  'gemini_weekly',
+  'claude_5h',
+  'claude_weekly',
+]);
+
+const DEFAULT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
+const MIN_TOPBAR_SLOTS = 1;
+const MAX_TOPBAR_SLOTS = 5;
+
+const OVERVIEW_METRIC_KEYS = Object.freeze([
+  'tps',
+  'ttft',
+  'avg_tps',
+  'step_cost',
+  'session_cost',
+  'cache_hit',
+  'session_tokens',
+  'context_usage',
+  'quota_tightest',
+]);
+
+const DEFAULT_OVERVIEW_METRICS = Object.freeze([
+  'tps',
+  'ttft',
+  'avg_tps',
+  'step_cost',
+]);
+
+/**
+ * 归一化面板挂载方式枚举（`'dual'` 顶部栏+侧边栏 | `'composer'` 输入框+侧边栏 | `'sidebar'` 仅侧边栏），
+ * 兼容历史 `enableWindowOverlay` 布尔开关，默认 `'dual'`。
+ *
+ * @param {unknown} mode
+ * @param {unknown} [legacyEnableOverlay]
+ * @returns {'dual'|'composer'|'sidebar'}
+ */
+function normalizeWindowMountMode(mode, legacyEnableOverlay) {
+  const m = String(mode ?? '').trim().toLowerCase();
+  if (m === 'composer' || m === 'input') return 'composer';
+  if (m === 'sidebar' || m === 'sidebar_only' || m === 'off') return 'sidebar';
+  if (m === 'dual' || m === 'topbar') return 'dual';
+  if (legacyEnableOverlay === false) return 'sidebar';
+  return 'dual';
+}
+
+/**
+ * 归一化每周额度统计模式枚举（兼容历史简写 `'tokens'` / `'cost'` 与标准枚举 `'custom_tokens'` / `'custom_cost'`）。
+ *
+ * @param {unknown} mode
+ * @returns {'official'|'custom_tokens'|'custom_cost'}
+ */
+function normalizeWeeklyLimitMode(mode) {
+  const m = String(mode || '').trim().toLowerCase();
+  if (m === 'custom_tokens' || m === 'tokens') return 'custom_tokens';
+  if (m === 'custom_cost' || m === 'cost') return 'custom_cost';
+  return 'official';
+}
+
+/**
+ * 归一化顶栏/输入框胶囊槽位数组（1~5 项动态自添加，默认 3 项，自动清洗历史 `'none'` 与重复项）。
+ *
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function normalizeTopbarCapsuleSlots(raw) {
+  if (!Array.isArray(raw)) {
+    return [...DEFAULT_TOPBAR_SLOTS];
+  }
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const val = String(item ?? '').trim();
+    if (!val || val === 'none') continue;
+    const mapped = val === 'step_cost' ? 'cost' : val;
+    if (!TOPBAR_SLOT_KEYS.includes(mapped) || seen.has(mapped)) continue;
+    seen.add(mapped);
+    out.push(mapped);
+    if (out.length >= MAX_TOPBAR_SLOTS) break;
+  }
+  if (out.length < MIN_TOPBAR_SLOTS) {
+    return ['context'];
+  }
+  return out;
+}
+
+/**
+ * 归一化实时监控第一行指标矩阵的槽位与顺序（1~4 项，默认 4 项）。
+ *
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function normalizeOverviewMetrics(raw) {
+  if (!Array.isArray(raw)) {
+    return [...DEFAULT_OVERVIEW_METRICS];
+  }
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const rawVal = String(item ?? '').trim();
+    const val = rawVal === 'cost' ? 'step_cost' : rawVal;
+    if (!OVERVIEW_METRIC_KEYS.includes(val) || seen.has(val)) continue;
+    seen.add(val);
+    out.push(val);
+    if (out.length >= 4) break;
+  }
+  return out.length > 0 ? out : ['tps'];
+}
+
+// --- shared/window-bridge-protocol.mjs ---
+const WINDOW_BRIDGE_KEY = '__AGUsageMonitorBridge';
+const WINDOW_BRIDGE_ROUTE_KEY = 'hostRouteCascadeId';
+const WINDOW_OVERLAY_KEY = '__AGUsageMonitorOverlay';
+
+const WINDOW_OVERLAY_METHODS = Object.freeze({
+  ensureAlive: 'ensureAlive',
+  getDockKind: 'getDockKind',
+  getMountMode: 'getMountMode',
+  updateBridge: 'updateBridge',
+  applyMountMode: 'applyMountMode',
+  syncHostRoute: 'syncHostRoute',
+  deliverRpc: 'deliverRpc',
+  dispose: 'dispose',
+});
+
+function readInjectedWindowBridge() {
+  return typeof window === 'undefined' ? undefined : window[WINDOW_BRIDGE_KEY];
+}
+
 // --- src/icons/svgRegistry.js ---
 /**
  * @fileoverview Pure vector SVG icon registry (16x16 grid).
@@ -327,6 +471,9 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'fmt.subAgent': '子代理',
   'fmt.subBadge': '子{index}',
   'fmt.subBadgeShort': '子',
+  'fmt.sideQuestion': '旁路提问',
+  'fmt.sideBadge': '旁{index}',
+  'fmt.sideBadgeShort': '旁',
   'fmt.selectedCount': '已选 {count} {unit}',
   'fmt.selectedListTitle': '已选 ({count})：{names}',
   'fmt.selectPlaceholder': '请选择',
@@ -895,6 +1042,9 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'fmt.subAgent': 'Subagent',
   'fmt.subBadge': 'S{index}',
   'fmt.subBadgeShort': 'Sub',
+  'fmt.sideQuestion': 'Side Question',
+  'fmt.sideBadge': 'Q{index}',
+  'fmt.sideBadgeShort': 'Q',
   'fmt.selectedCount': '{count} {unit} selected',
   'fmt.selectedListTitle': 'Selected ({count}): {names}',
   'fmt.selectPlaceholder': 'Select',
@@ -1496,8 +1646,15 @@ const THEME_ACCENT_PRESETS = Object.freeze([
 const FONT_SCALE_FACTORS = Object.freeze({
   sm: 0.92,
   md: 1,
-  lg: 1.08,
-  xl: 1.15,
+  lg: 1.14,
+  xl: 1.28,
+});
+
+const PANEL_SCALE_FACTORS = Object.freeze({
+  sm: 1,
+  md: 1,
+  lg: 1.09,
+  xl: 1.18,
 });
 
 function normalizeClientThemeAccent(raw) {
@@ -1549,10 +1706,13 @@ function applyAppearanceToRoot(targetEl, settings, { includeFontScale = true } =
   if (includeFontScale) {
     const scaleKey = normalizeClientFontScale(settings?.fontScale);
     const factor = FONT_SCALE_FACTORS[scaleKey] ?? 1;
+    const panelFactor = PANEL_SCALE_FACTORS[scaleKey] ?? 1;
     setOrClearStyleVar(targetEl, '--ui-font-scale', factor === 1 ? '' : String(factor));
+    setOrClearStyleVar(targetEl, '--ui-panel-scale', panelFactor === 1 ? '' : String(panelFactor));
     targetEl.setAttribute?.('data-font-scale', scaleKey);
   } else {
     setOrClearStyleVar(targetEl, '--ui-font-scale', '');
+    setOrClearStyleVar(targetEl, '--ui-panel-scale', '');
     if (typeof targetEl.removeAttribute === 'function') {
       targetEl.removeAttribute('data-font-scale');
     }
@@ -2358,6 +2518,7 @@ function mergeModelsByDisplayName(models = [], settings = {}, options = {}) {
  * (Sidecar Webview `window.sidecar.fetch` + Main Window Loopback Bridge).
  */
 
+
 const inFlightGets = new Map();
 const activeControllers = new Map();
 
@@ -2367,8 +2528,7 @@ const activeControllers = new Map();
  * @returns {{ port: number, token: string, bundleVersion?: string, stylesCss?: string } | null}
  */
 function getWindowBridgeConfig() {
-  if (typeof window === 'undefined') return null;
-  const br = window.__AGUsageMonitorBridge;
+  const br = readInjectedWindowBridge();
   const port = Number(br?.port || 0);
   if (br && Number.isInteger(port) && port > 0 && typeof br.token === 'string' && br.token) {
     return br;
@@ -2602,13 +2762,6 @@ async function callSidecarApi(path, { method = 'GET', body, abortKey = '', cdpTi
  */
 
 
-const VIEW_TABS = Object.freeze([
-  { value: 'overview', label: '实时监控', icon: 'pulse' },
-  { value: 'consumption', label: '用量统计', icon: 'chart-bar' },
-  { value: 'steps', label: '调用明细', icon: 'table' },
-  { value: 'settings', label: '偏好设置', icon: 'sliders' },
-]);
-
 function getViewTabs() {
   return [
     { value: 'overview', label: t('nav.overview'), icon: 'pulse' },
@@ -2656,7 +2809,7 @@ function extractHostRouteCascadeId() {
   if (m && CASCADE_UUID_RE.test(m[1])) {
     return m[1];
   }
-  const extBridgeRouteId = String(window.__AGUsageMonitorBridge?.hostRouteCascadeId || '').trim();
+  const extBridgeRouteId = String(readInjectedWindowBridge()?.[WINDOW_BRIDGE_ROUTE_KEY] || '').trim();
   if (extBridgeRouteId && CASCADE_UUID_RE.test(extBridgeRouteId)) {
     return extBridgeRouteId;
   }
@@ -2738,23 +2891,9 @@ let loopActive = false;
 let loopIntervalMs = 2000;
 let loopTickFn = null;
 
-const CLIENT_TOPBAR_SLOT_KEYS = Object.freeze([
-  'context',
-  'tps',
-  'ttft',
-  'avg_tps',
-  'cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'quota_auto',
-  'gemini_5h',
-  'gemini_weekly',
-  'claude_5h',
-  'claude_weekly',
-]);
+const CLIENT_TOPBAR_SLOT_KEYS = TOPBAR_SLOT_KEYS;
 
-const DEFAULT_CLIENT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
+const DEFAULT_CLIENT_TOPBAR_SLOTS = DEFAULT_TOPBAR_SLOTS;
 
 const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
@@ -2774,24 +2913,9 @@ const DEFAULT_CLIENT_OVERVIEW_MODULES = Object.freeze([
 
 const DEFAULT_CLIENT_HOVER_MODULES = Object.freeze(['metrics', 'context', 'quotas']);
 
-const CLIENT_OVERVIEW_METRIC_KEYS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'context_usage',
-  'quota_tightest',
-]);
+const CLIENT_OVERVIEW_METRIC_KEYS = OVERVIEW_METRIC_KEYS;
 
-const DEFAULT_CLIENT_OVERVIEW_METRICS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-]);
+const DEFAULT_CLIENT_OVERVIEW_METRICS = DEFAULT_OVERVIEW_METRICS;
 
 const CLIENT_STEP_COLUMN_KEYS = Object.freeze([
   'step',
@@ -2941,12 +3065,7 @@ function normalizeClientOrderedList(raw, { allowedKeys, defaultItems, minLen, ma
  * @returns {string[]}
  */
 function normalizeClientTopbarSlots(raw) {
-  return normalizeClientOrderedList(raw, {
-    allowedKeys: CLIENT_TOPBAR_SLOT_KEYS,
-    defaultItems: DEFAULT_CLIENT_TOPBAR_SLOTS,
-    minLen: 1,
-    maxLen: 5,
-  });
+  return normalizeTopbarCapsuleSlots(raw);
 }
 
 /**
@@ -2986,12 +3105,7 @@ function normalizeClientOverviewModules(raw) {
  * @returns {string[]}
  */
 function normalizeClientOverviewMetrics(raw) {
-  return normalizeClientOrderedList(raw, {
-    allowedKeys: CLIENT_OVERVIEW_METRIC_KEYS,
-    defaultItems: DEFAULT_CLIENT_OVERVIEW_METRICS,
-    minLen: 1,
-    maxLen: 4,
-  });
+  return normalizeOverviewMetrics(raw);
 }
 
 /**
@@ -3035,12 +3149,7 @@ function normalizeClientOrchestratorIdMode(mode) {
  * @returns {'dual'|'composer'|'sidebar'}
  */
 function normalizeClientWindowMountMode(mode, legacyEnableOverlay) {
-  const m = String(mode ?? '').trim().toLowerCase();
-  if (m === 'composer' || m === 'input') return 'composer';
-  if (m === 'sidebar' || m === 'off') return 'sidebar';
-  if (m === 'dual' || m === 'topbar') return 'dual';
-  if (legacyEnableOverlay === false) return 'sidebar';
-  return 'dual';
+  return normalizeWindowMountMode(mode, legacyEnableOverlay);
 }
 
 function isEquivalentTelemetry(prev, next) {
@@ -3056,15 +3165,6 @@ function isEquivalentTelemetry(prev, next) {
     }
     return true;
   };
-  const normMount = (mode, legacyEnableOverlay) => {
-    const m = String(mode ?? '').trim().toLowerCase();
-    if (m === 'composer' || m === 'input') return 'composer';
-    if (m === 'sidebar' || m === 'off') return 'sidebar';
-    if (m === 'dual' || m === 'topbar') return 'dual';
-    if (legacyEnableOverlay === false) return 'sidebar';
-    return 'dual';
-  };
-
   // 1. 比对系统设置项（外观语言/主题/字号、模型显示策略、更新策略、挂载与结构布局配置）
   const pAct = prev.activeConversation;
   const nAct = next.activeConversation;
@@ -3074,6 +3174,7 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.language ?? 'zh-CN') !== (nSet?.language ?? 'zh-CN')) return false;
   if ((pSet?.themeAccent ?? 'host') !== (nSet?.themeAccent ?? 'host')) return false;
   if ((pSet?.fontScale ?? 'md') !== (nSet?.fontScale ?? 'md')) return false;
+  if ((prev.hostPlatform || '') !== (next.hostPlatform || '')) return false;
   if (Boolean(pSet?.contextWindowRiskAccepted) !== Boolean(nSet?.contextWindowRiskAccepted)) {
     return false;
   }
@@ -3136,8 +3237,8 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.pluginUpdateMode ?? '') !== (nSet?.pluginUpdateMode ?? '')) return false;
   if (pSet?.autoUpdatePlugin !== nSet?.autoUpdatePlugin) return false;
   if (
-    normMount(pSet?.windowMountMode, pSet?.enableWindowOverlay) !==
-    normMount(nSet?.windowMountMode, nSet?.enableWindowOverlay)
+    normalizeClientWindowMountMode(pSet?.windowMountMode, pSet?.enableWindowOverlay) !==
+    normalizeClientWindowMountMode(nSet?.windowMountMode, nSet?.enableWindowOverlay)
   ) {
     return false;
   }
@@ -3743,12 +3844,6 @@ async function requestTelemetry(params, force) {
     consecutivePollFailures = 0;
 
     const latestSt = telemetryStore.getState();
-    const previousAccount = latestSt.telemetry?.account;
-    const nextAccount = payload?.account;
-    const accountChanged = previousAccount?.status === 'signedIn' &&
-      (nextAccount?.status === 'signedOut' || (nextAccount?.status === 'signedIn' &&
-        (previousAccount.email || previousAccount.name) !== (nextAccount.email || nextAccount.name)));
-    const accountPatch = accountChanged ? { selectedConversationId: '' } : {};
     if (force) {
       const elapsed = Date.now() - startMs;
       if (elapsed < 220) {
@@ -3759,7 +3854,6 @@ async function requestTelemetry(params, force) {
       }
       if (feedbackTimer) clearTimeout(feedbackTimer);
       telemetryStore.setState({
-        ...accountPatch,
         telemetry: payload,
         minuteTick: Math.floor(Date.now() / 30000),
         syncState: 'synced',
@@ -3772,7 +3866,6 @@ async function requestTelemetry(params, force) {
       const isSame = isEquivalentTelemetry(latestSt.telemetry, payload);
       const nextTelemetry = isSame ? latestSt.telemetry : payload;
       telemetryStore.setState({
-        ...accountPatch,
         telemetry: nextTelemetry,
         minuteTick: Math.floor(Date.now() / 30000),
         syncState: latestSt.syncState === 'synced' ? 'synced' : 'idle',
@@ -3808,9 +3901,7 @@ async function saveSettingsPatch(patch) {
     safePatch.fontScale = normalizeClientFontScale(safePatch.fontScale);
   }
   if (Object.prototype.hasOwnProperty.call(safePatch, 'weeklyLimitMode')) {
-    const mode = safePatch.weeklyLimitMode;
-    safePatch.weeklyLimitMode =
-      mode === 'custom_tokens' || mode === 'custom_cost' ? mode : 'official';
+    safePatch.weeklyLimitMode = normalizeWeeklyLimitMode(safePatch.weeklyLimitMode);
   }
   if (Object.prototype.hasOwnProperty.call(safePatch, 'enableCliStatusLine')) {
     safePatch.enableCliStatusLine = Boolean(safePatch.enableCliStatusLine);
@@ -4029,29 +4120,76 @@ function getAgentBadgeClass(index = 0, isMain = false) {
  * @returns {string}
  */
 function formatAgentBadgeText(agent) {
+  const isSideQ = Boolean(
+    agent?.isSideQuestion ||
+      agent?.typeName === 'side_question' ||
+      /^旁\d*$/.test(String(agent?.badgeText || ''))
+  );
   if (!isEnglishLocale()) {
     if (!agent || agent.isMain) return agent?.badgeText || '主';
+    if (isSideQ) {
+      const sIdx = Number(agent.sideIndex || 0);
+      return agent.badgeText || (sIdx > 0 ? `旁${sIdx}` : '旁');
+    }
     return agent.badgeText || `子${agent.index || ''}`;
   }
   if (!agent || agent.isMain) return t('fmt.mainBadge');
-  return agent.index ? t('fmt.subBadge', { index: agent.index }) : t('fmt.subBadgeShort');
+  if (isSideQ) {
+    const m = String(agent.badgeText || '').match(/^旁(\d+)$/);
+    const sIdx = Number(agent.sideIndex || (m ? m[1] : 0));
+    return sIdx > 0 ? t('fmt.sideBadge', { index: sIdx }) : t('fmt.sideBadgeShort');
+  }
+  const subMatch = String(agent.badgeText || '').match(/^子(\d+)$/);
+  const subOrd = Number(subMatch ? subMatch[1] : agent.index || 0);
+  return subOrd > 0 ? t('fmt.subBadge', { index: subOrd }) : t('fmt.subBadgeShort');
 }
 
 /**
- * 格式化主/子代理的完整显示名称（如 `子代理 #1 · Codebase Researcher`）。
+ * 格式化主/子代理或旁路提问的完整显示名称（如 `子代理 #1 · Codebase Researcher` / `旁路提问 #1 · ...`）。
  *
  * @param {object|null|undefined} agent
  * @returns {string}
  */
 function formatAgentLabel(agent) {
+  const isSideQ = Boolean(
+    agent?.isSideQuestion ||
+      agent?.typeName === 'side_question' ||
+      /^旁/.test(String(agent?.badgeText || agent?.shortLabel || ''))
+  );
   if (!isEnglishLocale()) {
     if (!agent) return '主代理';
     if (agent.isMain) return agent.shortLabel || '主代理';
+    if (isSideQ) {
+      const sIdx = Number(agent.sideIndex || 0);
+      const fallbackShort = sIdx > 0 ? `旁路提问 #${sIdx}` : '旁路提问';
+      const rolePart =
+        agent.role &&
+        agent.role !== '旁路提问' &&
+        agent.role !== 'Side Question' &&
+        agent.role !== agent.shortLabel
+          ? ` · ${agent.role}`
+          : '';
+      return `${agent.shortLabel || fallbackShort}${rolePart}`;
+    }
     const rolePart = agent.role && agent.role !== '子代理' ? ` · ${agent.role}` : '';
     return `${agent.shortLabel || '子代理'}${rolePart}`;
   }
   if (!agent || agent.isMain) return t('fmt.mainAgent');
-  const idx = Number(agent.index || 0);
+  if (isSideQ) {
+    const m = String(agent.shortLabel || agent.badgeText || '').match(/(\d+)/);
+    const sIdx = Number(agent.sideIndex || (m ? m[1] : 0));
+    const baseLabel = sIdx > 0 ? `${t('fmt.sideQuestion')} #${sIdx}` : t('fmt.sideQuestion');
+    const rolePart =
+      agent.role &&
+      agent.role !== '旁路提问' &&
+      agent.role !== 'Side Question' &&
+      agent.role !== agent.shortLabel
+        ? ` · ${agent.role}`
+        : '';
+    return `${baseLabel}${rolePart}`;
+  }
+  const subMatch = String(agent.shortLabel || agent.badgeText || '').match(/(\d+)/);
+  const idx = Number(subMatch ? subMatch[1] : agent.index || 0);
   const baseLabel = idx > 0 ? `${t('fmt.subAgent')} #${idx}` : t('fmt.subAgent');
   const rolePart =
     agent.role && agent.role !== '子代理' && agent.role !== 'Subagent' ? ` · ${agent.role}` : '';
@@ -4140,8 +4278,8 @@ function resolveScopedConversation(
     }
     if (effectiveCtxScope === 'auto') {
       ctxAgent =
-        agents.find((a) => a.agentId === aggregated.activeAgentId) ||
-        agents.find((a) => a.isRunning) ||
+        agents.find((a) => !a.isSideQuestion && a.agentId === aggregated.activeAgentId) ||
+        agents.find((a) => !a.isSideQuestion && a.isRunning) ||
         mainAgent;
     }
   }
@@ -4157,6 +4295,24 @@ function resolveScopedConversation(
     scopedConv,
     ctxAgent,
   };
+}
+
+/**
+ * 判断宿主系统是否为 macOS (`darwin`)：优先读取后端遥测或双栖桥接注入的 `platform`，首帧缺省时回退 UA/平台标识。
+ *
+ * @param {Record<string, any>|null|undefined} telemetry
+ * @returns {boolean}
+ */
+function isMacHostPlatform(telemetry) {
+  const p = String(telemetry?.hostPlatform || readInjectedWindowBridge()?.platform || '')
+    .trim()
+    .toLowerCase();
+  if (p) return p === 'darwin';
+  if (typeof navigator !== 'undefined') {
+    const ua = String(navigator.platform || navigator.userAgent || '');
+    return /\b(?:mac|darwin)\b|macintosh|mac\s*os/i.test(ua);
+  }
+  return false;
 }
 
 // --- src/components/ui/TopLongPillNav.js ---
@@ -4249,12 +4405,14 @@ const TopLongPillNav = defineComponent({
         }
 
         patchText(entry.labelEl, item.label);
-        if (item.badge !== undefined && item.badge !== null && item.badge !== '') {
+        const hasBadge = item.badge !== undefined && item.badge !== null && item.badge !== '';
+        if (hasBadge) {
           patchAttr(entry.badgeEl, 'hidden', false);
           patchText(entry.badgeEl, `(${item.badge})`);
         } else {
           patchAttr(entry.badgeEl, 'hidden', true);
         }
+        patchAttr(entry.btn, 'title', hasBadge ? `${item.label} (${item.badge})` : item.label);
 
         const isActive = item.value === modelValue;
         patchClasses(entry.btn, { 'is-active': isActive });
@@ -5713,6 +5871,8 @@ function createTrendAreaChart() {
   let currentPts = [];
   let currentIsHeatmap = false;
   let currentHeatmapWeeks = 0;
+  let currentHeatmapFirstDow = 0;
+  let currentHeatmapGapPx = 2;
   let currentCellEls = [];
   let tickElsByIdx = new Map();
   let hoveredIdx = -1;
@@ -5877,21 +6037,117 @@ function createTrendAreaChart() {
     showLineHoverAtIndex(idx);
   }
 
-  function findHeatmapCellFromEvent(e) {
+  function findDirectHeatmapCell(e) {
     let cur = e?.target || null;
     while (cur && cur !== hmGridEl) {
       const idxAttr = cur.getAttribute?.('data-slot-idx');
       if (idxAttr !== null && idxAttr !== undefined && idxAttr !== '') {
-        return { idx: Number(idxAttr), cellEl: cur };
+        const idx = Number(idxAttr);
+        if (Number.isFinite(idx) && idx >= 0 && idx < currentSlots.length) {
+          return { idx, cellEl: cur };
+        }
       }
       cur = cur.parentNode || null;
     }
     return null;
   }
 
+  function resolveHeatmapCellFromPointer(e) {
+    const directHit = findDirectHeatmapCell(e);
+    if (directHit) return directHit;
+
+    const clientX = Number(e?.clientX);
+    const clientY = Number(e?.clientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+      return null;
+    }
+
+    const rect = hmGridEl.getBoundingClientRect?.();
+    if (!rect || !(rect.width > 0) || !(rect.height > 0) || currentHeatmapWeeks <= 0) {
+      if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+      return null;
+    }
+
+    const W = currentHeatmapWeeks;
+    const G = currentHeatmapGapPx;
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    if (
+      relX < -(G + 1) ||
+      relX > rect.width + G + 1 ||
+      relY < -(G + 1) ||
+      relY > rect.height + G + 1
+    ) {
+      return null;
+    }
+
+    const pitchX = (rect.width + G) / W;
+    const pitchY = (rect.height + G) / 7;
+    const cellW = Math.max(1, pitchX - G);
+    const cellH = Math.max(1, pitchY - G);
+
+    function distanceToCell(c, r) {
+      const x0 = c * pitchX;
+      const y0 = r * pitchY;
+      const dx = relX < x0 ? x0 - relX : relX > x0 + cellW ? relX - (x0 + cellW) : 0;
+      const dy = relY < y0 ? y0 - relY : relY > y0 + cellH ? relY - (y0 + cellH) : 0;
+      return { chebyshev: Math.max(dx, dy), distSq: dx * dx + dy * dy };
+    }
+
+    // 指针滑入当前悬停格四周的空隙（gap）时保持原高亮，彻底消除跨格空隙闪烁与边缘微抖
+    if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+      const curGridPos = currentHeatmapFirstDow + hoveredIdx;
+      const curCol = Math.floor(curGridPos / 7);
+      const curRow = curGridPos % 7;
+      if (distanceToCell(curCol, curRow).chebyshev <= G + 0.75) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+    }
+
+    // 快速扫过或初始落入格子间隙时，按网格步距吸附到最近的有效日期格
+    const approxCol = Math.max(0, Math.min(W - 1, Math.floor((relX + G * 0.5) / pitchX)));
+    const approxRow = Math.max(0, Math.min(6, Math.floor((relY + G * 0.5) / pitchY)));
+    const directSlotIdx = approxCol * 7 + approxRow - currentHeatmapFirstDow;
+    if (
+      directSlotIdx >= 0 &&
+      directSlotIdx < currentSlots.length &&
+      currentCellEls[directSlotIdx]
+    ) {
+      return { idx: directSlotIdx, cellEl: currentCellEls[directSlotIdx] };
+    }
+
+    // 首周补位或末周未来空白边缘：仅当仍在相邻有效格的间隙光晕内才吸附，深入纯空白角则清空
+    let bestIdx = -1;
+    let bestDistSq = Infinity;
+    for (let dc = -1; dc <= 1; dc++) {
+      const c = approxCol + dc;
+      if (c < 0 || c >= W) continue;
+      for (let dr = -1; dr <= 1; dr++) {
+        const r = approxRow + dr;
+        if (r < 0 || r > 6) continue;
+        const sIdx = c * 7 + r - currentHeatmapFirstDow;
+        if (sIdx < 0 || sIdx >= currentSlots.length || !currentCellEls[sIdx]) continue;
+        const d = distanceToCell(c, r);
+        if (d.chebyshev <= G + 1.5 && d.distSq < bestDistSq) {
+          bestDistSq = d.distSq;
+          bestIdx = sIdx;
+        }
+      }
+    }
+    if (bestIdx >= 0) {
+      return { idx: bestIdx, cellEl: currentCellEls[bestIdx] };
+    }
+    return null;
+  }
+
   function handleHeatmapPointer(e) {
     if (!currentIsHeatmap || !currentSlots.length) return;
-    const hit = findHeatmapCellFromEvent(e);
+    const hit = resolveHeatmapCellFromPointer(e);
     if (!hit || !Number.isFinite(hit.idx)) {
       clearHover();
       return;
@@ -6028,10 +6284,13 @@ function createTrendAreaChart() {
             : 0;
         const totalCells = firstDow + slots.length;
         const totalWeeks = Math.max(1, Math.ceil(totalCells / 7));
+        const gapPx = totalWeeks > 42 ? 1.5 : 2;
         currentHeatmapWeeks = totalWeeks;
+        currentHeatmapFirstDow = firstDow;
+        currentHeatmapGapPx = gapPx;
 
         patchStyleVar(hmBodyEl, '--hm-weeks', String(totalWeeks));
-        patchStyleVar(hmBodyEl, '--hm-gap', totalWeeks > 42 ? '1.5px' : '2px');
+        patchStyleVar(hmBodyEl, '--hm-gap', `${gapPx}px`);
 
         // 重建顶部对齐月份标签
         while (hmMonthsEl.firstChild) hmMonthsEl.removeChild(hmMonthsEl.firstChild);
@@ -6612,21 +6871,6 @@ function computePublicationFit(
     sampleCiHalf,
     grid,
   };
-}
-
-/**
- * 计算样本点上的平滑回归拟合值序列（供单元测试与轻量调用直接读取）。
- *
- * @param {number[]} ys
- * @param {{ minVal?: number, maxVal?: number, xs?: number[] }} [bounds]
- * @returns {number[]}
- */
-function computeLoessFit(ys, { minVal = 0, maxVal = Infinity, xs = null } = {}) {
-  const n = Array.isArray(ys) ? ys.length : 0;
-  if (n === 0) return [];
-  const xArr =
-    Array.isArray(xs) && xs.length === n ? xs : Array.from({ length: n }, (_, idx) => idx);
-  return computePublicationFit(xArr, ys, { minVal, maxVal }).sampleFits;
 }
 
 /**
@@ -8453,33 +8697,8 @@ function createModelFitChart() {
  */
 
 
-const CAPSULE_METRIC_KEYS = Object.freeze([
-  'context',
-  'tps',
-  'ttft',
-  'avg_tps',
-  'cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'quota_auto',
-  'gemini_5h',
-  'gemini_weekly',
-  'claude_5h',
-  'claude_weekly',
-]);
 
-const OVERVIEW_METRIC_KEYS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'context_usage',
-  'quota_tightest',
-]);
+const CAPSULE_METRIC_KEYS = TOPBAR_SLOT_KEYS;
 
 const THIRD_PARTY_FAMILY_RE = /claude|gpt|anthropic|openai|3p|sonnet|opus|haiku/i;
 
@@ -9495,7 +9714,9 @@ const ContextWindowWidget = defineComponent({
           const activeBadgeText = isEnglishLocale()
             ? rawActiveBadge === '主'
               ? t('fmt.mainBadge')
-              : rawActiveBadge.replace(/^子(\d+)$/, (_, n) => t('fmt.subBadge', { index: n }))
+              : rawActiveBadge
+                  .replace(/^子(\d+)$/, (_, n) => t('fmt.subBadge', { index: n }))
+                  .replace(/^旁(\d+)$/, (_, n) => t('fmt.sideBadge', { index: n }))
             : rawActiveBadge;
 
           const pillItems = [
@@ -11185,7 +11406,7 @@ const STEP_COLUMN_REGISTRY = Object.freeze({
       if (reason && !refs.speedReason) {
         refs.speedReason = h('div', {
           className: 'text-muted',
-          style: 'font-size: var(--fs-2xs);',
+          style: 'font-size: var(--fs-xs);',
         });
         refs.wrapEl.appendChild(refs.speedReason);
       }
@@ -11631,11 +11852,6 @@ const CapsuleBarWidget = defineComponent({
       ]
     );
 
-    const titlebarRightMock = h('div', { className: 'preview-win-controls', 'aria-hidden': 'true' }, [
-      h('span', { className: 'preview-win-dot' }),
-      h('span', { className: 'preview-win-dot' }),
-      h('span', { className: 'preview-win-dot' }),
-    ]);
     const composerSendMock = h(
       'span',
       { className: 'preview-composer-send', 'aria-hidden': 'true', hidden: true },
@@ -11645,7 +11861,7 @@ const CapsuleBarWidget = defineComponent({
     const hostBarEl = h(
       'div',
       { className: 'preview-capsule-bar', 'data-mount-mode': 'dual' },
-      [titlebarLeftMock, composerLeftMock, capsuleCluster, titlebarRightMock, composerSendMock]
+      [titlebarLeftMock, composerLeftMock, capsuleCluster, composerSendMock]
     );
 
     const sidebarHintEl = h('div', {
@@ -11674,7 +11890,6 @@ const CapsuleBarWidget = defineComponent({
       });
 
       patchAttr(titlebarLeftMock, 'hidden', isComposer);
-      patchAttr(titlebarRightMock, 'hidden', isComposer);
       patchAttr(composerLeftMock, 'hidden', !isComposer);
       patchAttr(composerSendMock, 'hidden', !isComposer);
       patchAttr(sidebarHintEl, 'hidden', !isSidebar);
@@ -12105,10 +12320,12 @@ const StepTableWidget = defineComponent({
             const badgeText = isEnglishLocale()
               ? formatAgentBadgeText({
                   isMain: !st.isSubagent,
+                  isSideQuestion: Boolean(st.isSideQuestion),
+                  sideIndex: st.sideIndex || 0,
                   index: st.agentIndex || 0,
                   badgeText: st.agentBadge,
                 })
-              : st.agentBadge || (st.isSubagent ? '子' : '主');
+              : st.agentBadge || (st.isSideQuestion ? '旁' : st.isSubagent ? '子' : '主');
             patchText(refs.agentBadgeEl, badgeText);
 
             if (interactiveBadges && onSelectAgentScopes) {
@@ -12412,10 +12629,12 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
     isRunning: true,
     stepCount: 16,
     speedSampleCount: 15,
+    speedSummary: { sampleCount: 15, excludedCount: 1 },
     latestTokPerSec: 68.4,
     avgTokPerSec: 54.8,
     latestTtftSec: 1.15,
     avgTtftSec: 1.62,
+    ttftSummary: { avgSec: 1.62, sampleCount: 15 },
     latestStepCostUsd: 0.042,
     sessionCostUsd: 1.16,
     latestCacheHitPct: 94.5,
@@ -12446,10 +12665,12 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
     isRunning: false,
     stepCount: 8,
     speedSampleCount: 8,
+    speedSummary: { sampleCount: 8, excludedCount: 0 },
     latestTokPerSec: 96.2,
     avgTokPerSec: 88.5,
     latestTtftSec: 0.68,
     avgTtftSec: 0.82,
+    ttftSummary: { avgSec: 0.82, sampleCount: 8 },
     latestStepCostUsd: 0.009,
     sessionCostUsd: 0.12,
     latestCacheHitPct: 88.1,
@@ -12473,8 +12694,10 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
     ...mainAgent,
     stepCount: 24,
     speedSampleCount: 23,
+    speedSummary: { sampleCount: 23, excludedCount: 1 },
     avgTokPerSec: 59.6,
     avgTtftSec: 1.38,
+    ttftSummary: { avgSec: 1.38, sampleCount: 23 },
     sessionCostUsd: 1.28,
     sessionCacheHitPct: 88.9,
     inputTokens: 186400,
@@ -12488,8 +12711,9 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
   return {
     settings: mergedSettings,
     account: {
-      planName: 'Google AI Pro',
-      aiCredits: 1200,
+      tierName: 'Google AI Ultra',
+      planName: 'Pro',
+      aiCredits: 0,
     },
     quotas: {
       activePool: {
@@ -14215,7 +14439,7 @@ const SettingsStructureTab = defineComponent({
       isVisibleFn: () => isStructureVisible() && activeThirdTab === 'hover',
       initialModuleKeys: [],
     });
-    const hoverPreviewCanvas = h('div', { className: 'structure-preview-canvas is-scaled' }, [
+    const hoverPreviewCanvas = h('div', { className: 'structure-preview-canvas' }, [
       hoverPreviewTipEl,
       hoverPreviewEmptyEl,
     ]);
@@ -14307,7 +14531,7 @@ const SettingsStructureTab = defineComponent({
       isVisibleFn: () => isStructureVisible() && activeThirdTab === 'overview',
       initialModuleKeys: [],
     });
-    const overviewPreviewCanvas = h('div', { className: 'structure-preview-canvas is-scaled' }, [
+    const overviewPreviewCanvas = h('div', { className: 'structure-preview-canvas' }, [
       overviewPreviewContainerEl,
     ]);
 
@@ -15923,7 +16147,7 @@ const TopSessionHeader = defineComponent({
       } else if (isRunning) {
         const runningAgent = (telemetry?.activeConversation?.agents || []).find((a) => a.isRunning);
         const runSuffix =
-          hasSubagents && runningAgent ? ` · ${runningAgent.badgeText || runningAgent.shortLabel}` : '';
+          hasSubagents && runningAgent ? ` · ${formatAgentBadgeText(runningAgent)}` : '';
         patchSvgIcon(statusIcon, 'bolt');
         patchText(statusText, t('header.statusGenerating', { suffix: runSuffix }));
         patchClasses(statusTag, {
@@ -16004,7 +16228,6 @@ const LiveOverviewView = defineComponent({
   setup({ onCleanup }) {
     const overviewInner = h('div', {
       className: 'overview-modules-host',
-      style: 'display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: 2px;',
     });
 
     const widgetHost = createDynamicWidgetHost({
@@ -18417,7 +18640,7 @@ const SettingsView = defineComponent({
 
     const generalTab = SettingsGeneralTab({ onLayoutChange: refreshScroll });
     const structureTab = SettingsStructureTab({ onLayoutChange: refreshScroll });
-    const accountTab = SettingsAccountTab({ onLayoutChange: refreshScroll });
+    const accountTab = SHOW_ACCOUNT_TAB ? SettingsAccountTab({ onLayoutChange: refreshScroll }) : null;
     const otherTab = SettingsOtherTab({ onLayoutChange: refreshScroll });
 
     let showingAccount = false;
@@ -18425,25 +18648,27 @@ const SettingsView = defineComponent({
       const target =
         subTab === 'structure' ||
         subTab === 'other' ||
-        (SHOW_ACCOUNT_TAB && subTab === 'account')
+        (accountTab && subTab === 'account')
           ? subTab
           : 'general';
       subNavSwitch.setValue(target);
       patchAttr(generalTab.el, 'hidden', target !== 'general');
       patchAttr(structureTab.el, 'hidden', target !== 'structure');
       patchAttr(structureTab.refs.thirdNavBar, 'hidden', target !== 'structure');
-      patchAttr(accountTab.el, 'hidden', !SHOW_ACCOUNT_TAB || target !== 'account');
       patchAttr(otherTab.el, 'hidden', target !== 'other');
-      const nextShowingAccount = SHOW_ACCOUNT_TAB && target === 'account' && activeView === 'settings';
-      if (nextShowingAccount && !showingAccount) void accountTab.refs.load();
-      showingAccount = nextShowingAccount;
+      if (accountTab) {
+        patchAttr(accountTab.el, 'hidden', target !== 'account');
+        const nextShowingAccount = target === 'account' && activeView === 'settings';
+        if (nextShowingAccount && !showingAccount) void accountTab.refs.load();
+        showingAccount = nextShowingAccount;
+      }
       refreshScroll();
     }
 
     const contentContainer = h(
       'div',
       {},
-      SHOW_ACCOUNT_TAB
+      accountTab
         ? [generalTab.el, structureTab.el, accountTab.el, otherTab.el]
         : [generalTab.el, structureTab.el, otherTab.el]
     );
@@ -18470,7 +18695,7 @@ const SettingsView = defineComponent({
         if (settings) structureTab.refs.renderSettings(settings);
       } else if (settingsSubTab === 'other') {
         if (settings) otherTab.refs.renderSettings(settings, telemetry.contextWindowModels || []);
-      } else if (SHOW_ACCOUNT_TAB && settingsSubTab === 'account') {
+      } else if (accountTab && settingsSubTab === 'account') {
         accountTab.refs.renderAccount(telemetry?.account, telemetry?.quotas);
       } else {
         if (settings) generalTab.refs.renderSettings(settings);
@@ -18510,7 +18735,7 @@ const SettingsView = defineComponent({
         });
         generalTab.refs.refreshLabels();
         structureTab.refs.refreshLabels();
-        accountTab.refs.refreshLabels();
+        accountTab?.refs.refreshLabels();
         otherTab.refs.refreshLabels();
         refreshScroll();
       }
@@ -18523,7 +18748,7 @@ const SettingsView = defineComponent({
       subNavSwitch.destroy();
       generalTab.destroy();
       structureTab.destroy();
-      accountTab.destroy();
+      accountTab?.destroy();
       otherTab.destroy();
       viewScrollbar.destroy();
     });
@@ -19455,7 +19680,7 @@ function isImmediatelyBeforeNode(node, refNode) {
 function isIdeExtensionChatFrame() {
   try {
     if (typeof window === 'undefined') return false;
-    if (window.__AGUsageMonitorBridge?.isIdeChatFrame === true) return true;
+    if (readInjectedWindowBridge()?.isIdeChatFrame === true) return true;
     return /[?&]extension(?:View|Variant)=/i.test(String(window.location?.search || ''));
   } catch {
     return false;
@@ -19466,7 +19691,7 @@ function resolveActiveDockTarget(options = undefined) {
   const settings = telemetryStore.getState().telemetry?.settings;
   const rawMode =
     settings?.windowMountMode ??
-    (typeof window !== 'undefined' ? window.__AGUsageMonitorBridge?.mountMode : undefined);
+    readInjectedWindowBridge()?.mountMode;
   const mountMode =
     options?.mountMode ||
     normalizeClientWindowMountMode(rawMode, settings?.enableWindowOverlay);
@@ -19567,14 +19792,14 @@ function mountWindowOverlay() {
   let carryOverMultiPinnedOpen = false;
   let carryOverPointer = null;
   try {
-    const prevOv = window.__AGUsageMonitorOverlay;
+    const prevOv = window[WINDOW_OVERLAY_KEY];
     carryOverTelemetry = prevOv?.getTelemetrySnapshot?.() || null;
     carryOverTooltipOpen = Boolean(prevOv?.isHoverOpen?.());
     carryOverPopoverOpen = Boolean(prevOv?.isOpen?.());
     carryOverMultiHoverOpen = Boolean(prevOv?.isMultiHoverOpen?.());
     carryOverMultiPinnedOpen = Boolean(prevOv?.isMultiPinnedOpen?.());
     carryOverPointer = prevOv?.getLastPointer?.() || null;
-    prevOv?.dispose?.();
+    prevOv?.[WINDOW_OVERLAY_METHODS.dispose]?.();
   } catch {
     // 忽略旧实例卸载异常
   }
@@ -20016,8 +20241,6 @@ function mountWindowOverlay() {
   portalShadow.appendChild(portalStyleEl);
 
   const initialSettings = telemetryStore.getState().telemetry?.settings;
-  applyAppearanceToRoot(capsuleHost, initialSettings, { includeFontScale: false });
-  applyAppearanceToRoot(portalHost, initialSettings, { includeFontScale: true });
 
   // 悬停全景概览浮层（完全解耦至 widgetRegistry，由 hoverModules 动态驱动 0..4 个独立组件，零硬编码）
   const hoverUpdateVerText = h('span', { text: t('capsule.hoverNewVerGeneric') });
@@ -20226,9 +20449,19 @@ function mountWindowOverlay() {
     [appInstance.el]
   );
 
+  function syncPortalAppearance(settings) {
+    applyAppearanceToRoot(capsuleHost, settings, { includeFontScale: false });
+    applyAppearanceToRoot(portalHost, settings, { includeFontScale: true });
+    const scaleKey = normalizeClientFontScale(settings?.fontScale);
+    popoverEl.setAttribute?.('data-font-scale', scaleKey);
+    hoverTipEl.setAttribute?.('data-font-scale', scaleKey);
+    multiPanelEl.setAttribute?.('data-font-scale', scaleKey);
+  }
+
   portalShadow.appendChild(multiPanelEl);
   portalShadow.appendChild(hoverTipEl);
   portalShadow.appendChild(popoverEl);
+  syncPortalAppearance(initialSettings);
   (document.body || document.documentElement).appendChild(portalHost);
 
   // --- 3. 几何测量、IDE 主题桥接、顶栏停靠与防溢出定位 ---
@@ -20401,6 +20634,8 @@ function mountWindowOverlay() {
     return true;
   }
 
+  const isMac = () => isMacHostPlatform(telemetryStore.getState().telemetry);
+
   function updateFixedFallbackPosition() {
     const dockMode = capsuleHost.getAttribute('data-dock');
     if (dockMode === 'flow' || dockMode === 'ide-titlebar' || dockMode === 'composer') {
@@ -20410,18 +20645,29 @@ function mountWindowOverlay() {
     }
     try {
       const vw = Number(window.innerWidth || 1280);
-      let rightOffset = 144;
+      const minRight = isMac() ? 12 : 144;
+      let rightOffset = minRight;
       const anchor = findNativeTopRightAnchor();
       if (anchor?.getBoundingClientRect) {
         const r = anchor.getBoundingClientRect();
         if (r.width > 0 && r.left > 0 && r.left < vw) {
-          rightOffset = Math.max(144, Math.ceil(vw - r.left + 6));
+          rightOffset = Math.max(minRight, Math.ceil(vw - r.left + 6));
         }
       }
       capsuleHost.style.top = '7px';
       capsuleHost.style.right = `${rightOffset}px`;
     } catch {
       // 忽略回退坐标计算异常
+    }
+  }
+
+  function syncCapsuleOsAttr() {
+    const nextOs = isMac() ? 'mac' : 'default';
+    if (capsuleHost.getAttribute('data-os') !== nextOs) {
+      patchAttr(capsuleHost, 'data-os', nextOs);
+      if (capsuleHost.getAttribute('data-dock') === 'fixed') {
+        updateFixedFallbackPosition();
+      }
     }
   }
 
@@ -20494,10 +20740,19 @@ function mountWindowOverlay() {
               }
             }
           }
-          if (!hasVisibleWindowControls && navigator?.windowControlsOverlay?.visible) {
+          if (navigator?.windowControlsOverlay?.visible) {
             const wcoRect = navigator.windowControlsOverlay.getTitlebarAreaRect?.();
-            if (wcoRect && wcoRect.width > 0 && tbRect.right > wcoRect.right + 4) {
-              rightSiblingsWidth += tbRect.right - wcoRect.right;
+            if (wcoRect && wcoRect.width > 0) {
+              if (!hasVisibleWindowControls && tbRect.right > wcoRect.right + 4) {
+                rightSiblingsWidth += tbRect.right - wcoRect.right;
+              }
+              const leftOverlayInset = wcoRect.left - tbRect.left;
+              if (leftOverlayInset > leftContentWidth) {
+                leftContentWidth = Math.min(
+                  Math.round(tbRect.width * 0.45),
+                  Math.ceil(leftOverlayInset)
+                );
+              }
             }
           }
 
@@ -20510,10 +20765,11 @@ function mountWindowOverlay() {
         if (tbRect.width > 0) {
           const titleEl = titlebar.firstElementChild;
           const titleInner = titleEl?.firstElementChild;
+          const macTrafficReserve = isMac() ? 80 : 168;
           const contentStart = titleInner?.getBoundingClientRect
             ? Math.max(8, titleInner.getBoundingClientRect().left - tbRect.left)
-            : tbRect.left < 168
-              ? 168 - tbRect.left
+            : tbRect.left < macTrafficReserve
+              ? macTrafficReserve - tbRect.left
               : 12;
           const minTitleWidth = 180;
           let siblingButtonsWidth = 64;
@@ -20567,8 +20823,17 @@ function mountWindowOverlay() {
       const vh = Number(window.innerHeight || 800);
       const navRight = getLeftSidebarRightEdge(vw);
       const minLeft = navRight > 0 ? Math.max(12, navRight + 12) : 12;
-      const defaultCardW = Math.min(FLOATING_CARD_WIDTH, Math.max(280, vw - 24));
-      const defaultMultiW = Math.min(MULTI_PANEL_WIDTH, Math.max(280, vw - 24));
+      const curSettings = telemetryStore.getState().telemetry?.settings;
+      const panelScale =
+        PANEL_SCALE_FACTORS[normalizeClientFontScale(curSettings?.fontScale)] ?? 1;
+      const defaultCardW = Math.min(
+        Math.round(FLOATING_CARD_WIDTH * panelScale),
+        Math.max(280, vw - 24)
+      );
+      const defaultMultiW = Math.min(
+        Math.round(MULTI_PANEL_WIDTH * panelScale),
+        Math.max(280, vw - 24)
+      );
       const isDockComposer = capsuleHost.getAttribute('data-dock') === 'composer';
 
       if (multiOpen) {
@@ -20616,9 +20881,8 @@ function mountWindowOverlay() {
 
       if (popoverOpen) {
         const maxPopCardW = Math.max(280, vw - minLeft - 12);
-        const curSettings = telemetryStore.getState().telemetry?.settings;
         const popWidthMode = normalizeClientPopoverWidthMode(curSettings?.popoverWidthMode);
-        let desiredPopW = Math.min(POPOVER_BASE_WIDTH, maxPopCardW);
+        let desiredPopW = Math.min(Math.round(POPOVER_BASE_WIDTH * panelScale), maxPopCardW);
         if (popWidthMode === 'custom') {
           desiredPopW = Math.min(
             normalizeClientPopoverWidth(curSettings?.popoverWidth),
@@ -20783,6 +21047,7 @@ function mountWindowOverlay() {
     if (bodyOrDoc && !portalHost.isConnected) {
       bodyOrDoc.appendChild(portalHost);
     }
+    syncCapsuleOsAttr();
     ensureWorkbenchThemeObserved();
 
     const dockTarget = resolveRuntimeDockTarget();
@@ -21266,8 +21531,8 @@ function mountWindowOverlay() {
     const telemetry = telSt.telemetry;
 
     setI18nLanguage(telemetry?.settings?.language);
-    applyAppearanceToRoot(capsuleHost, telemetry?.settings, { includeFontScale: false });
-    applyAppearanceToRoot(portalHost, telemetry?.settings, { includeFontScale: true });
+    syncPortalAppearance(telemetry?.settings);
+    syncCapsuleOsAttr();
 
     const showMulti = telemetry?.settings?.showTopbarMultiSession !== false;
     patchAttr(multiBtn, 'hidden', !showMulti);
@@ -21712,28 +21977,28 @@ function mountWindowOverlay() {
 
   const handle = {
     bundleVersion,
-    ensureAlive() {
+    [WINDOW_OVERLAY_METHODS.ensureAlive]() {
       if (disposed) return false;
       return ensureCapsuleDocked();
     },
-    syncHostRoute() {
+    [WINDOW_OVERLAY_METHODS.syncHostRoute]() {
       if (disposed) return false;
       syncHostRouteIfChanged();
       return true;
     },
-    updateBridge(nextBridge) {
+    [WINDOW_OVERLAY_METHODS.updateBridge](nextBridge) {
       if (disposed || !nextBridge || typeof nextBridge !== 'object') return false;
       const port = Number(nextBridge.port || 0);
       const token = String(nextBridge.token || '');
       if (!Number.isInteger(port) || port <= 0 || !token) return false;
-      const cur = window.__AGUsageMonitorBridge || {};
+      const cur = readInjectedWindowBridge() || {};
       const portChanged = Number(cur.port || 0) !== port || String(cur.token || '') !== token;
       cur.port = port;
       cur.token = token;
       if (portChanged) {
         cur.transportMode = 'http';
       }
-      window.__AGUsageMonitorBridge = cur;
+      window[WINDOW_BRIDGE_KEY] = cur;
       void fetchTelemetry({ force: false });
       return true;
     },
@@ -21743,7 +22008,7 @@ function mountWindowOverlay() {
     getLastPointer() {
       return hasPointerCoords ? { x: lastPointerX, y: lastPointerY } : null;
     },
-    deliverRpc(responses) {
+    [WINDOW_OVERLAY_METHODS.deliverRpc](responses) {
       if (disposed) return 0;
       return deliverCdpBridgeResponses(responses);
     },
@@ -21768,14 +22033,13 @@ function mountWindowOverlay() {
     isMultiHoverOpen: () => Boolean(multiOpen && !multiPinned),
     isMultiPinnedOpen: () => Boolean(multiOpen && multiPinned),
     getLayoutMode: () => layoutMode,
-    getDockKind: () => String(capsuleHost.getAttribute('data-dock') || ''),
-    getMountMode: () => lastAppliedMountMode,
-    applyMountMode(nextMode) {
+    [WINDOW_OVERLAY_METHODS.getDockKind]: () => String(capsuleHost.getAttribute('data-dock') || ''),
+    [WINDOW_OVERLAY_METHODS.getMountMode]: () => lastAppliedMountMode,
+    [WINDOW_OVERLAY_METHODS.applyMountMode](nextMode) {
       if (disposed) return false;
       const normalized = normalizeClientWindowMountMode(nextMode, nextMode !== 'sidebar');
-      if (typeof window !== 'undefined' && window.__AGUsageMonitorBridge) {
-        window.__AGUsageMonitorBridge.mountMode = normalized;
-      }
+      const bridgeConfig = readInjectedWindowBridge();
+      if (bridgeConfig) bridgeConfig.mountMode = normalized;
       const curTel = telemetryStore.getState().telemetry;
       if (curTel?.settings) {
         telemetryStore.setState({
@@ -21792,7 +22056,7 @@ function mountWindowOverlay() {
       lastAppliedMountMode = normalized;
       return ensureCapsuleDocked();
     },
-    dispose() {
+    [WINDOW_OVERLAY_METHODS.dispose]() {
       if (disposed) return;
       disposed = true;
       clearInterval(watchdogTimer);
@@ -21845,13 +22109,13 @@ function mountWindowOverlay() {
       try {
         portalHost.remove();
       } catch {}
-      if (window.__AGUsageMonitorOverlay === handle) {
-        delete window.__AGUsageMonitorOverlay;
+      if (window[WINDOW_OVERLAY_KEY] === handle) {
+        delete window[WINDOW_OVERLAY_KEY];
       }
     },
   };
 
-  window.__AGUsageMonitorOverlay = handle;
+  window[WINDOW_OVERLAY_KEY] = handle;
   return handle;
 }
 
@@ -21868,14 +22132,17 @@ async function bootstrapApp(mountTarget = document.getElementById('app-root')) {
   const appInstance = App();
   mountTarget.appendChild(appInstance.el);
 
+  const syncDocAppearance = (settings) => {
+    setI18nLanguage(settings?.language);
+    if (typeof document !== 'undefined' && document.documentElement) {
+      applyAppearanceToRoot(document.documentElement, settings, { includeFontScale: true });
+    }
+  };
+  syncDocAppearance(telemetryStore.getState().telemetry?.settings);
+
   const unsubAppearance = telemetryStore.subscribe(
     (st) => st.telemetry?.settings,
-    (settings) => {
-      setI18nLanguage(settings?.language);
-      if (typeof document !== 'undefined' && document.documentElement) {
-        applyAppearanceToRoot(document.documentElement, settings, { includeFontScale: true });
-      }
-    }
+    syncDocAppearance
   );
 
   const stopPolling = startAsyncTelemetryLoop(2000);

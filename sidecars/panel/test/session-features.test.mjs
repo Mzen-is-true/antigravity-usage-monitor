@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { backendHarness } from './backend-harness.mjs';
+import { normalizeWindowMountMode } from '../shared/settings-normalization.mjs';
 
 const FLASH = 'MODEL_PLACEHOLDER_M318';
 const ARGON = 'MODEL_PLACEHOLDER_M417';
@@ -318,7 +319,7 @@ test('Frontend store equivalence and UI panel placement / rendering verification
     storeSrc.indexOf('function isEquivalentTelemetry'),
     storeSrc.indexOf('export async function fetchTelemetry')
   );
-  const storeCtx = {};
+  const storeCtx = { normalizeClientWindowMountMode: normalizeWindowMountMode };
   vm.runInNewContext(`${eqSrc}\nglobalThis.eq=isEquivalentTelemetry;`, storeCtx);
 
   const base = {

@@ -36,7 +36,6 @@ export const LiveOverviewView = defineComponent({
   setup({ onCleanup }) {
     const overviewInner = h('div', {
       className: 'overview-modules-host',
-      style: 'display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: 2px;',
     });
 
     const widgetHost = createDynamicWidgetHost({

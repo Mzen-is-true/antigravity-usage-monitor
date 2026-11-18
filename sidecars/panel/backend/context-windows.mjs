@@ -77,7 +77,7 @@ export function getContextWindowGroups(models) {
     }));
     const capacity = Math.min(...members.map((member) => member.capacity));
     if (!options.length && capacity) {
-      for (const tokens of new Set([128000, 256000, 512000, 768000, 900000, capacity])) {
+      for (const tokens of new Set([128000, 256000, 384000, 512000, 768000, 900000, capacity])) {
         if (tokens <= capacity && !options.some(({ name }) => name === String(tokens))) {
           options.push({ name: String(tokens), tokens });
         }

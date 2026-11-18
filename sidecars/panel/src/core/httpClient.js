@@ -4,6 +4,8 @@
  * (Sidecar Webview `window.sidecar.fetch` + Main Window Loopback Bridge).
  */
 
+import { readInjectedWindowBridge } from '../../shared/window-bridge-protocol.mjs';
+
 const inFlightGets = new Map();
 const activeControllers = new Map();
 
@@ -13,8 +15,7 @@ const activeControllers = new Map();
  * @returns {{ port: number, token: string, bundleVersion?: string, stylesCss?: string } | null}
  */
 export function getWindowBridgeConfig() {
-  if (typeof window === 'undefined') return null;
-  const br = window.__AGUsageMonitorBridge;
+  const br = readInjectedWindowBridge();
   const port = Number(br?.port || 0);
   if (br && Number.isInteger(port) && port > 0 && typeof br.token === 'string' && br.token) {
     return br;

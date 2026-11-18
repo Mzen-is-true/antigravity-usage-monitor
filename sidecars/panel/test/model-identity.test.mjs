@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { extractModelSteps, normalizeCachedStep, MODEL_IDENTITY_VERSION } from '../speed-metrics.mjs';
+import { normalizeClientWindowMountMode } from '../src/store/telemetryStore.js';
+import { extractModelSteps, normalizeCachedStep, MODEL_IDENTITY_VERSION } from '../trajectory-metrics.mjs';
 import {
   formatUsd,
   mergeModelsByDisplayName,
@@ -11,7 +12,8 @@ import {
 import { backendHarness } from './backend-harness.mjs';
 
 const FLASH = 'MODEL_PLACEHOLDER_M318', ARGON = 'MODEL_PLACEHOLDER_M418';
-const createdAtMs = Date.now() - 20_000;
+const PROMO_CLOCK_MS = Date.parse('2026-11-17T12:00:20Z');
+const createdAtMs = PROMO_CLOCK_MS - 20_000;
 function step(index, model, checkpoint = false) {
   return { type: checkpoint ? 'CORTEX_STEP_TYPE_CHECKPOINT' : 'CORTEX_STEP_TYPE_PLANNER_RESPONSE',
     status: 'CORTEX_STEP_STATUS_DONE', metadata: {
@@ -22,7 +24,7 @@ function step(index, model, checkpoint = false) {
     } };
 }
 async function payload(steps, options = {}) {
-  return backendHarness({ summaries: { test: { stepCount: steps.length } },
+  return backendHarness({ clock: () => PROMO_CLOCK_MS, summaries: { test: { stepCount: steps.length } },
     trajectories: { test: { trajectory: { steps } } }, ...options }).buildTelemetryPayloadInternal('test');
 }
 
@@ -135,7 +137,7 @@ test('upstream responseModel is preserved alongside placeholder modelKey for Ste
 });
 
 test('server model catalog overrides static placeholder mapping', () => {
-  const {resolveModelInfo} = backendHarness();
+  const {resolveModelInfo} = backendHarness({ clock: () => PROMO_CLOCK_MS });
   const result = resolveModelInfo(ARGON, new Map([[ARGON, {modelId:'gemini-3.8-flash-high', label:'Gemini 3.8 Flash (High)'}]]));
   assert.equal(result.shortName,'flash-3.8-high'); assert.equal(result.pricing.input,0.75);
 });
@@ -194,7 +196,7 @@ test('custom cost budget cannot claim a complete remaining percentage when price
 test('frontend considers a model-only correction a real telemetry update', () => {
   const source = fs.readFileSync(new URL('../src/store/telemetryStore.js',import.meta.url),'utf8');
   const fn = source.slice(source.indexOf('function isEquivalentTelemetry'),source.indexOf('export async function fetchTelemetry'));
-  const ctx = {}; vm.runInNewContext(fn+'\nglobalThis.compare=isEquivalentTelemetry;',ctx);
+  const ctx = { normalizeClientWindowMountMode }; vm.runInNewContext(fn+'\nglobalThis.compare=isEquivalentTelemetry;',ctx);
   const a={activeConversation:{recentSteps:[{modelKey:'unknown',modelShort:'模型未知',costUsd:null}]}};
   const b=structuredClone(a); b.activeConversation.recentSteps[0].modelShort='new-model';
   assert.equal(ctx.compare(a,b),false); assert.equal(ctx.compare(a,structuredClone(a)),true);
@@ -256,6 +258,7 @@ test('Orchestrator (Carbon) direct/planning and inferred compaction steps resolv
 
 test('Orchestrator (Argon) resolves to orch-argon, annotates upstream ID, and is not misclassified as Carbon', async () => {
   const h = backendHarness({
+    clock: () => PROMO_CLOCK_MS,
     summaries: { test: { stepCount: 1 } },
     trajectories: {
       test: {
@@ -339,12 +342,12 @@ test('real-world M669 worker steps (responseModel gemini-flash-worker-agy, displ
   assert.equal(s2.modelShort, 'hydrogen-4');
   assert.equal(s2.modelLabel, 'Orchestrator Worker (Hydrogen)');
   assert.equal(s2.modelUpstream, 'gemini-flash-worker-agy (hydrogen-4)');
-  assert.equal(s2.costUsd, 0.0103);
+  assert.equal(s2.costUsd, 0.0097);
 
   assert.equal(s3.modelShort, 'hydrogen-4');
   assert.equal(s3.modelLabel, 'Orchestrator Worker (Hydrogen)');
   assert.equal(s3.modelUpstream, 'gemini-flash-worker-agy (hydrogen-4)');
-  assert.equal(s3.costUsd, 0.0103);
+  assert.equal(s3.costUsd, 0.0097);
 
   assert.equal(p.consumption.account.unpricedCalls, 0);
   const orchRow = p.modelBreakdown.find((m) => m.label === 'Orchestrator (Carbon)');
@@ -392,7 +395,7 @@ test('new Carbon (M427/M437/M438) and Hydrogen XHigh/High/Medium/Low (M525-M528)
   assert.equal(xhigh.shortName, 'hydrogen-4-xhigh');
   assert.equal(xhigh.baseLabel, 'Gemini 4 Hydrogen');
   assert.equal(xhigh.pricing.input, 1.5);
-  assert.equal(xhigh.pricing.cache, 0.15);
+  assert.equal(xhigh.pricing.cache, 0.075);
   assert.equal(xhigh.pricing.output, 7.5);
   assert.equal(resolveModelInfo('MODEL_PLACEHOLDER_M525').shortName, 'hydrogen-4-high');
   assert.equal(resolveModelInfo('MODEL_PLACEHOLDER_M526').shortName, 'hydrogen-4');
@@ -488,7 +491,7 @@ test('orchestratorIdMode defaults to compact, persists via settings action, and 
 });
 
 test('historical placeholders (M15/M16/M47/M84/M132/M133/M264/M330) and verified internal routing slugs resolve and price accurately without wildcarding unknown slugs', () => {
-  const { resolveModelInfo } = backendHarness();
+  const { resolveModelInfo } = backendHarness({ clock: () => PROMO_CLOCK_MS });
 
   const expectedPlaceholders = [
     ['MODEL_PLACEHOLDER_M84', 'flash-3.5-high', 1.5, 9.0],

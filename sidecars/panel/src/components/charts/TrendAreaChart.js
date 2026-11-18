@@ -349,6 +349,8 @@ export function createTrendAreaChart() {
   let currentPts = [];
   let currentIsHeatmap = false;
   let currentHeatmapWeeks = 0;
+  let currentHeatmapFirstDow = 0;
+  let currentHeatmapGapPx = 2;
   let currentCellEls = [];
   let tickElsByIdx = new Map();
   let hoveredIdx = -1;
@@ -513,21 +515,117 @@ export function createTrendAreaChart() {
     showLineHoverAtIndex(idx);
   }
 
-  function findHeatmapCellFromEvent(e) {
+  function findDirectHeatmapCell(e) {
     let cur = e?.target || null;
     while (cur && cur !== hmGridEl) {
       const idxAttr = cur.getAttribute?.('data-slot-idx');
       if (idxAttr !== null && idxAttr !== undefined && idxAttr !== '') {
-        return { idx: Number(idxAttr), cellEl: cur };
+        const idx = Number(idxAttr);
+        if (Number.isFinite(idx) && idx >= 0 && idx < currentSlots.length) {
+          return { idx, cellEl: cur };
+        }
       }
       cur = cur.parentNode || null;
     }
     return null;
   }
 
+  function resolveHeatmapCellFromPointer(e) {
+    const directHit = findDirectHeatmapCell(e);
+    if (directHit) return directHit;
+
+    const clientX = Number(e?.clientX);
+    const clientY = Number(e?.clientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+      return null;
+    }
+
+    const rect = hmGridEl.getBoundingClientRect?.();
+    if (!rect || !(rect.width > 0) || !(rect.height > 0) || currentHeatmapWeeks <= 0) {
+      if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+      return null;
+    }
+
+    const W = currentHeatmapWeeks;
+    const G = currentHeatmapGapPx;
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    if (
+      relX < -(G + 1) ||
+      relX > rect.width + G + 1 ||
+      relY < -(G + 1) ||
+      relY > rect.height + G + 1
+    ) {
+      return null;
+    }
+
+    const pitchX = (rect.width + G) / W;
+    const pitchY = (rect.height + G) / 7;
+    const cellW = Math.max(1, pitchX - G);
+    const cellH = Math.max(1, pitchY - G);
+
+    function distanceToCell(c, r) {
+      const x0 = c * pitchX;
+      const y0 = r * pitchY;
+      const dx = relX < x0 ? x0 - relX : relX > x0 + cellW ? relX - (x0 + cellW) : 0;
+      const dy = relY < y0 ? y0 - relY : relY > y0 + cellH ? relY - (y0 + cellH) : 0;
+      return { chebyshev: Math.max(dx, dy), distSq: dx * dx + dy * dy };
+    }
+
+    // 指针滑入当前悬停格四周的空隙（gap）时保持原高亮，彻底消除跨格空隙闪烁与边缘微抖
+    if (hoveredIdx >= 0 && hoveredIdx < currentSlots.length && currentCellEls[hoveredIdx]) {
+      const curGridPos = currentHeatmapFirstDow + hoveredIdx;
+      const curCol = Math.floor(curGridPos / 7);
+      const curRow = curGridPos % 7;
+      if (distanceToCell(curCol, curRow).chebyshev <= G + 0.75) {
+        return { idx: hoveredIdx, cellEl: currentCellEls[hoveredIdx] };
+      }
+    }
+
+    // 快速扫过或初始落入格子间隙时，按网格步距吸附到最近的有效日期格
+    const approxCol = Math.max(0, Math.min(W - 1, Math.floor((relX + G * 0.5) / pitchX)));
+    const approxRow = Math.max(0, Math.min(6, Math.floor((relY + G * 0.5) / pitchY)));
+    const directSlotIdx = approxCol * 7 + approxRow - currentHeatmapFirstDow;
+    if (
+      directSlotIdx >= 0 &&
+      directSlotIdx < currentSlots.length &&
+      currentCellEls[directSlotIdx]
+    ) {
+      return { idx: directSlotIdx, cellEl: currentCellEls[directSlotIdx] };
+    }
+
+    // 首周补位或末周未来空白边缘：仅当仍在相邻有效格的间隙光晕内才吸附，深入纯空白角则清空
+    let bestIdx = -1;
+    let bestDistSq = Infinity;
+    for (let dc = -1; dc <= 1; dc++) {
+      const c = approxCol + dc;
+      if (c < 0 || c >= W) continue;
+      for (let dr = -1; dr <= 1; dr++) {
+        const r = approxRow + dr;
+        if (r < 0 || r > 6) continue;
+        const sIdx = c * 7 + r - currentHeatmapFirstDow;
+        if (sIdx < 0 || sIdx >= currentSlots.length || !currentCellEls[sIdx]) continue;
+        const d = distanceToCell(c, r);
+        if (d.chebyshev <= G + 1.5 && d.distSq < bestDistSq) {
+          bestDistSq = d.distSq;
+          bestIdx = sIdx;
+        }
+      }
+    }
+    if (bestIdx >= 0) {
+      return { idx: bestIdx, cellEl: currentCellEls[bestIdx] };
+    }
+    return null;
+  }
+
   function handleHeatmapPointer(e) {
     if (!currentIsHeatmap || !currentSlots.length) return;
-    const hit = findHeatmapCellFromEvent(e);
+    const hit = resolveHeatmapCellFromPointer(e);
     if (!hit || !Number.isFinite(hit.idx)) {
       clearHover();
       return;
@@ -664,10 +762,13 @@ export function createTrendAreaChart() {
             : 0;
         const totalCells = firstDow + slots.length;
         const totalWeeks = Math.max(1, Math.ceil(totalCells / 7));
+        const gapPx = totalWeeks > 42 ? 1.5 : 2;
         currentHeatmapWeeks = totalWeeks;
+        currentHeatmapFirstDow = firstDow;
+        currentHeatmapGapPx = gapPx;
 
         patchStyleVar(hmBodyEl, '--hm-weeks', String(totalWeeks));
-        patchStyleVar(hmBodyEl, '--hm-gap', totalWeeks > 42 ? '1.5px' : '2px');
+        patchStyleVar(hmBodyEl, '--hm-gap', `${gapPx}px`);
 
         // 重建顶部对齐月份标签
         while (hmMonthsEl.firstChild) hmMonthsEl.removeChild(hmMonthsEl.firstChild);

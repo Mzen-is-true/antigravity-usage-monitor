@@ -313,7 +313,9 @@ export const ContextWindowWidget = defineComponent({
           const activeBadgeText = isEnglishLocale()
             ? rawActiveBadge === '主'
               ? t('fmt.mainBadge')
-              : rawActiveBadge.replace(/^子(\d+)$/, (_, n) => t('fmt.subBadge', { index: n }))
+              : rawActiveBadge
+                  .replace(/^子(\d+)$/, (_, n) => t('fmt.subBadge', { index: n }))
+                  .replace(/^旁(\d+)$/, (_, n) => t('fmt.sideBadge', { index: n }))
             : rawActiveBadge;
 
           const pillItems = [

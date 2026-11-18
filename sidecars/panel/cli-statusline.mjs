@@ -23,7 +23,7 @@ import {
   speedMetric,
   summarizeSpeed,
   summarizeTtft,
-} from './speed-metrics.mjs';
+} from './trajectory-metrics.mjs';
 import {
   getNodeSqliteDatabaseSync,
   readLocalSqliteTrajectory,

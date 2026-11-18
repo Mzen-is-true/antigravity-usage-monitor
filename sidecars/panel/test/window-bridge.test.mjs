@@ -71,7 +71,7 @@ test('DevToolsActivePort parsing, cross-platform discovery (2.0 + IDE), and stri
   assert.equal(winPaths[3], path.join('C:\\Local', 'Antigravity IDE', 'DevToolsActivePort'));
 
   const macPaths = resolveDevToolsPortCandidates({}, 'darwin', '/Users/dev');
-  assert.equal(macPaths.length, 2);
+  assert.equal(macPaths.length, 6);
   assert.equal(
     macPaths[0],
     path.join('/Users/dev', 'Library', 'Application Support', 'Antigravity', 'DevToolsActivePort')
@@ -79,6 +79,22 @@ test('DevToolsActivePort parsing, cross-platform discovery (2.0 + IDE), and stri
   assert.equal(
     macPaths[1],
     path.join('/Users/dev', 'Library', 'Application Support', 'Antigravity IDE', 'DevToolsActivePort')
+  );
+  assert.equal(
+    macPaths[2],
+    path.join('/Users/dev', 'Library', 'Application Support', 'antigravity', 'DevToolsActivePort')
+  );
+  assert.equal(
+    macPaths[3],
+    path.join('/Users/dev', 'Library', 'Application Support', 'antigravity-ide', 'DevToolsActivePort')
+  );
+  assert.equal(
+    macPaths[4],
+    path.join('/Users/dev', '.config', 'Antigravity', 'DevToolsActivePort')
+  );
+  assert.equal(
+    macPaths[5],
+    path.join('/Users/dev', '.config', 'Antigravity IDE', 'DevToolsActivePort')
   );
 
   const linuxPaths = resolveDevToolsPortCandidates({ XDG_CONFIG_HOME: '/home/dev/.config' }, 'linux', '/home/dev');
@@ -330,11 +346,12 @@ test('CDP multi-window sync injects, skips healthy windows, hot-upgrades on vers
       const msg = JSON.parse(raw);
       if (msg.method === 'Runtime.evaluate') {
         const expr = msg.params.expression;
-        if (expr.includes('__AGUsageMonitorBridge =')) {
+        const ctx = windowContexts.get(this.targetId);
+        const previousBridge = ctx.__AGUsageMonitorBridge;
+        const value = vm.runInContext(expr, ctx);
+        if (ctx.__AGUsageMonitorBridge && ctx.__AGUsageMonitorBridge !== previousBridge) {
           injectEvalCount += 1;
         }
-        const ctx = windowContexts.get(this.targetId);
-        const value = vm.runInContext(expr, ctx);
         Promise.resolve(value).then((result) =>
           this._emit('message', {
             data: JSON.stringify({ id: msg.id, result: { result: { value: result } } }),
@@ -734,6 +751,7 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
   let liveSubagentPollActive = false;
   const fetchedUrls = [];
   const fetchedHeaders = [];
+  const createdForms = [];
 
   const docListeners = new Map();
   const winListeners = new Map();
@@ -743,7 +761,11 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     hidden: false,
     documentElement: docRoot,
     body,
-    createElement: (tag) => new MockNode(tag),
+    createElement: (tag) => {
+      const node = new MockNode(tag);
+      if (tag === 'form') createdForms.push(node);
+      return node;
+    },
     createElementNS: (_ns, tag) => new MockNode(tag),
     createTextNode: (txt) => {
       const t = new MockNode('#text');
@@ -1416,7 +1438,11 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(liveDotSvg.attributes.get('width'), '11', 'Enlarged live activity SVG dot size is 11');
     assert.equal(liveDotSvg.children[0].attributes.get('r'), '5', 'Enlarged dot circle radius is 5');
     assert.match(stylesCss, /\.wm-multi-dot\s*\{\s*width:\s*8px;\s*height:\s*8px;/, 'Topbar multi-session dot enlarged to 8px');
-    assert.match(stylesCss, /\.wm-hover-tip\s*\{[^}]*width:\s*min\(522px,\s*calc\(100vw - 24px\)\);/, 'Hover floating card width is 522px');
+    assert.match(
+      stylesCss,
+      /\.wm-hover-tip\s*\{[^}]*width:\s*min\(calc\(522px \* var\(--ui-panel-scale, 1\)\),\s*calc\(100vw - 24px\)\);/,
+      'Hover floating card base width is 522px and scales with --ui-panel-scale'
+    );
     assert.equal(multiPanelEl.querySelector('.wm-recent-list'), null, 'Recent sessions list removed so panel shows online sessions only');
     assert.equal(multiPanelEl.querySelector('.panel'), null, 'Single-layer multi-session panel without nested .panel box');
 
@@ -1557,19 +1583,25 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(mockSettings.themeAccent, 'host');
     assert.equal(portalHost.style.getPropertyValue('--user-accent-primary'), '', 'Host accent clears override');
 
-    // Font scale: switch to xl (1.15), verify portalHost scales while capsuleHost NEVER scales
+    // Font scale: switch to xl (1.28), verify portalHost and inner panels scale while capsuleHost NEVER scales
     assert.equal(fontScaleBtns.length, 4, 'Font scale segmented control has sm / md / lg / xl');
     fontScaleBtns[3].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(mockSettings.fontScale, 'xl');
-    assert.equal(portalHost.style.getPropertyValue('--ui-font-scale'), '1.15', 'Portal host scales to 1.15');
+    assert.equal(portalHost.style.getPropertyValue('--ui-font-scale'), '1.28', 'Portal host scales to 1.28');
+    assert.equal(portalHost.style.getPropertyValue('--ui-panel-scale'), '1.18', 'Portal host panel width scales to 1.18');
+    assert.equal(popoverEl.getAttribute('data-font-scale'), 'xl', 'Popover panel receives data-font-scale');
+    assert.equal(hoverTipEl.getAttribute('data-font-scale'), 'xl', 'Hover card receives data-font-scale');
+    assert.equal(multiPanelEl.getAttribute('data-font-scale'), 'xl', 'Multi-session panel receives data-font-scale');
     assert.equal(capsuleHost.style.getPropertyValue('--ui-font-scale'), '', 'Capsule host strictly excludes font scale');
     assert.equal(capsuleHost.hasAttribute('data-font-scale'), false);
     fontScaleBtns[1].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(mockSettings.fontScale, 'md');
     assert.equal(portalHost.style.getPropertyValue('--ui-font-scale'), '');
+    assert.equal(portalHost.style.getPropertyValue('--ui-panel-scale'), '');
     assert.equal(portalHost.getAttribute('data-font-scale'), 'md');
+    assert.equal(popoverEl.getAttribute('data-font-scale'), 'md');
 
     // Live i18n switch: zh-CN -> en-US -> zh-CN without page reload
     langBtns[1].dispatchEvent({ type: 'click', stopPropagation() {} });
@@ -1673,6 +1705,7 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     const previewCapsuleSlots = sec0.querySelectorAll('.wm-cap-slot');
     const previewMultiBtn = sec0.querySelector('.wm-multi-btn');
     assert.ok(previewCapsuleBar, 'Pane 0 mounts real CapsuleBarWidget preview');
+    assert.equal(previewCapsuleBar.querySelector('.preview-win-controls'), null, 'No redundant 3 window dots after capsule');
     assert.equal(previewCapsuleSlots.length, 5, 'Preview CapsuleBarWidget mounts real 5 capsule slots');
     assert.equal(previewCapsuleSlots[0].children[0].textContent, '68.4 t/s', 'Preview slot 0 renders simulated speed');
     assert.equal(previewCapsuleSlots[0].classList.contains('tone-good'), true, 'Preview capsule 68.4 t/s shares tone-good green with cards');
@@ -1910,6 +1943,21 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(sec2.hasAttribute('hidden'), false);
     const overviewPreviewHostEl = sec2.querySelector('.overview-modules-host');
     assert.equal(overviewPreviewHostEl.children.length, 5, 'Overview preview mounts all 5 real overview widgets');
+    assert.equal(
+      sec2.querySelector('.structure-preview-canvas').classList.contains('is-scaled'),
+      false,
+      'Overview preview canvas renders 1:1 without zoom scaling'
+    );
+    const previewCellSubs = Array.from(overviewPreviewHostEl.children[0].querySelectorAll('.cell-sub')).map(
+      (el) => el.textContent
+    );
+    assert.ok(previewCellSubs.includes('均值 1.4s'), 'Preview TTFT card shows populated mean TTFT');
+    assert.ok(previewCellSubs.includes('有效 23/24 步'), 'Preview Avg TPS card shows populated valid sample ratio');
+    assert.equal(
+      overviewPreviewHostEl.children[3].querySelector('.panel-meta').textContent,
+      'Google AI Ultra · Pro',
+      'Preview quota badge matches real tier · plan format'
+    );
 
     const [ovModWrap, ovMetricWrap] = sec2.querySelectorAll('.editable-slot-wrap');
     // Move row 3 ('quotas') up twice above 'used_quotas' and 'context' -> ['metrics', 'quotas', 'context', 'used_quotas', 'live_tasks']
@@ -2221,6 +2269,47 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(trendTooltipEl.hasAttribute('hidden'), false, 'Tooltip opens on heatmap cell hover');
     assert.equal(activeCell.classList.contains('is-hovered'), true);
     assert.match(trendTooltipEl.querySelector('.trend-tip-tokens').textContent, /100\.0k tok/);
+
+    // Crossing 2px inter-cell gaps keeps highlight/tooltip steady without flickering, and fast jumps snap to nearest cell
+    const hmBodyEl = heatmapStageEl.querySelector('.trend-heatmap-body');
+    const hmTotalWeeks = Number(hmBodyEl.style.getPropertyValue('--hm-weeks'));
+    const origGridRectFn = hmGridEl.getBoundingClientRect;
+    hmGridEl.getBoundingClientRect = () => ({
+      left: 100,
+      top: 200,
+      width: hmTotalWeeks * 10 - 2,
+      height: 7 * 10 - 2,
+      right: 100 + hmTotalWeeks * 10 - 2,
+      bottom: 200 + 7 * 10 - 2,
+    });
+    const activeCol = Number(activeCell.getAttribute('data-hm-col'));
+    const activeRow = Number(activeCell.getAttribute('data-hm-row'));
+    hmGridEl.dispatchEvent({ type: 'mouseover', target: hmGridEl });
+    assert.equal(trendTooltipEl.hasAttribute('hidden'), false, 'Container mouseover in gap does not blink tooltip');
+    hmGridEl.dispatchEvent({
+      type: 'mousemove',
+      target: hmGridEl,
+      clientX: 100 + activeCol * 10 + 9,
+      clientY: 200 + activeRow * 10 + 4,
+    });
+    assert.equal(trendTooltipEl.hasAttribute('hidden'), false, 'Tooltip stays visible in 2px gap beside active cell');
+    assert.equal(activeCell.classList.contains('is-hovered'), true, 'Active cell stays highlighted across bordering gap');
+
+    const snappedCol5Cell = realDayCells.find(
+      (c) => c.getAttribute('data-hm-col') === '5' && c.getAttribute('data-hm-row') === '2'
+    );
+    assert.ok(snappedCol5Cell, 'Target cell at col=5,row=2 exists');
+    hmGridEl.dispatchEvent({
+      type: 'mousemove',
+      target: hmGridEl,
+      clientX: 100 + 5 * 10 + 8.4,
+      clientY: 200 + 2 * 10 + 4,
+    });
+    assert.equal(trendTooltipEl.hasAttribute('hidden'), false, 'Tooltip stays visible when snapping across distant gap');
+    assert.equal(activeCell.classList.contains('is-hovered'), false);
+    assert.equal(snappedCol5Cell.classList.contains('is-hovered'), true, 'Fast pointer jump into distant gap snaps to nearest cell');
+    hmGridEl.getBoundingClientRect = origGridRectFn;
+
     hmGridEl.dispatchEvent({ type: 'mouseleave' });
     assert.equal(trendTooltipEl.hasAttribute('hidden'), true, 'Tooltip hides on mouseleave');
 
@@ -2703,6 +2792,9 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
       firstLegendSlotBefore,
       'Hover legend updates strictly in-place without DOM node replacement or appendChild'
     );
+
+    assert.equal(createdForms.some((form) => form.className.includes('settings-account-form')), false);
+    assert.equal(fetchedUrls.some((url) => url.includes('/api/accounts')), false);
 
     // Verify in-place bridge port rotation preserves exact DOM host nodes without remount
     fetchShouldFail = false;
@@ -5793,5 +5885,279 @@ test('CDP raw node:http WebSocket fallback succeeds when globalThis.WebSocket re
     cdpServer.closeAllConnections?.();
     await new Promise((r) => cdpServer.close(r));
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('WindowOverlayShell macOS (darwin) adaptation: sets data-os="mac", uses 12px fixed right fallback, and reserves 80px for traffic lights', async () => {
+  const panelDir = path.resolve(import.meta.dirname, '..');
+  const appJs = fs.readFileSync(path.join(panelDir, 'app.js'), 'utf8');
+  const stylesCss = fs.readFileSync(path.join(panelDir, 'styles.css'), 'utf8');
+  assert.match(stylesCss, /:host\(\.wm-capsule-host\[data-dock="fixed"\]\[data-os="mac"\]\)\s*\{\s*right:\s*12px;/);
+
+  function runOverlayForPlatform(platformKey, { withTitlebar = false, auxLeft = 0, winWidth = 1280 } = {}) {
+    function makeNode(tag) {
+      const attrs = new Map();
+      const clsSet = new Set();
+      const listeners = new Map();
+      let rectOverride = null;
+      const el = {
+        tagName: String(tag || 'DIV').toUpperCase(),
+        id: '',
+        textContent: '',
+        dataset: {},
+        offsetWidth: 0,
+        offsetHeight: 0,
+        clientWidth: 0,
+        scrollWidth: 0,
+        parentNode: null,
+        parentElement: null,
+        shadowRoot: null,
+        children: [],
+        style: {
+          setProperty(k, v) { this[k] = String(v); },
+          removeProperty(k) { delete this[k]; },
+          getPropertyValue(k) { return this[k] || ''; },
+        },
+        get isConnected() {
+          let cur = el;
+          while (cur) {
+            if (cur === body || cur === docEl) return true;
+            cur = cur.parentNode;
+          }
+          return false;
+        },
+        get firstChild() { return el.children[0] || null; },
+        get firstElementChild() { return el.children[0] || null; },
+        get lastElementChild() { return el.children[el.children.length - 1] || null; },
+        get className() { return [...clsSet].join(' '); },
+        set className(v) {
+          clsSet.clear();
+          for (const c of String(v || '').split(/\s+/).filter(Boolean)) clsSet.add(c);
+          attrs.set('class', [...clsSet].join(' '));
+        },
+        classList: {
+          add: (...cs) => cs.forEach((c) => c && clsSet.add(c)),
+          remove: (...cs) => cs.forEach((c) => clsSet.delete(c)),
+          contains: (c) => clsSet.has(c),
+          toggle(c, force) {
+            const on = force !== undefined ? Boolean(force) : !clsSet.has(c);
+            if (on) clsSet.add(c);
+            else clsSet.delete(c);
+            return on;
+          },
+        },
+        setAttribute(k, v) {
+          if (k === 'class') { el.className = v; return; }
+          attrs.set(k, String(v));
+          if (k === 'id') el.id = String(v);
+        },
+        getAttribute: (k) => (k === 'class' ? el.className : attrs.has(k) ? attrs.get(k) : null),
+        hasAttribute: (k) => attrs.has(k),
+        removeAttribute: (k) => attrs.delete(k),
+        appendChild(ch) {
+          if (!ch) return ch;
+          if (ch.parentNode?.removeChild) ch.parentNode.removeChild(ch);
+          ch.parentNode = el;
+          ch.parentElement = el;
+          el.children.push(ch);
+          return ch;
+        },
+        insertBefore(ch, ref) {
+          if (!ref) return el.appendChild(ch);
+          if (ch.parentNode?.removeChild) ch.parentNode.removeChild(ch);
+          ch.parentNode = el;
+          ch.parentElement = el;
+          const i = el.children.indexOf(ref);
+          if (i < 0) el.children.push(ch);
+          else el.children.splice(i, 0, ch);
+          return ch;
+        },
+        removeChild(ch) {
+          const i = el.children.indexOf(ch);
+          if (i >= 0) {
+            el.children.splice(i, 1);
+            ch.parentNode = null;
+            ch.parentElement = null;
+          }
+          return ch;
+        },
+        remove() { if (el.parentNode?.removeChild) el.parentNode.removeChild(el); },
+        closest: () => null,
+        contains(t) {
+          let cur = t;
+          while (cur) { if (cur === el) return true; cur = cur.parentNode; }
+          return false;
+        },
+        attachShadow() {
+          const sr = makeNode('shadow-root');
+          el.shadowRoot = sr;
+          return sr;
+        },
+        addEventListener(type, fn) {
+          if (!listeners.has(type)) listeners.set(type, []);
+          listeners.get(type).push(fn);
+        },
+        removeEventListener() {},
+        setRect(r) { rectOverride = r; },
+        getBoundingClientRect() {
+          return rectOverride || { left: 0, right: 64, top: 6, bottom: 34, width: 64, height: 28 };
+        },
+        querySelectorAll(sel) {
+          const out = [];
+          const walk = (n) => {
+            for (const c of n.children || []) {
+              if (sel === '[class*="@container/titlebar"]' && c.className.includes('@container/titlebar')) out.push(c);
+              else if (sel === '[data-testid="toggle-aux-sidebar"]' && c.getAttribute('data-testid') === 'toggle-aux-sidebar') out.push(c);
+              else if (sel === ':scope > div.shrink-0' && n === el && c.classList.contains('shrink-0')) out.push(c);
+              walk(c);
+            }
+          };
+          walk(el);
+          return out;
+        },
+        querySelector(sel) { return el.querySelectorAll(sel)[0] || null; },
+      };
+      return el;
+    }
+
+    const docEl = makeNode('html');
+    const body = makeNode('body');
+    docEl.appendChild(body);
+
+    if (withTitlebar) {
+      const tb = makeNode('div');
+      tb.className = 'flex @container/titlebar';
+      tb.setRect({ left: 0, right: winWidth, top: 0, bottom: 36, width: winWidth, height: 36 });
+      const titleGroup = makeNode('div');
+      const rightGroup = makeNode('div');
+      rightGroup.className = 'shrink-0';
+      const siblingBtn = makeNode('button');
+      siblingBtn.setRect({ left: winWidth - 56, right: winWidth, top: 4, bottom: 32, width: 56, height: 28 });
+      rightGroup.appendChild(siblingBtn);
+      tb.appendChild(titleGroup);
+      tb.appendChild(rightGroup);
+      body.appendChild(tb);
+    } else if (auxLeft > 0) {
+      const auxBtn = makeNode('button');
+      auxBtn.setAttribute('data-testid', 'toggle-aux-sidebar');
+      auxBtn.setRect({ left: auxLeft, right: auxLeft + 28, top: 8, bottom: 34, width: 28, height: 26 });
+      body.appendChild(auxBtn);
+    }
+
+    const payload = {
+      timestamp: '2026-11-17T00:00:00Z',
+      hostPlatform: platformKey,
+      settings: { windowMountMode: 'dual', enableWindowOverlay: true, showTopbarMultiSession: true, topbarCapsuleSlots: ['tps', 'ttft', 'context'] },
+      cloudStatus: { updateAvailable: false },
+      account: { planName: 'Pro' },
+      runningConversations: [],
+      conversations: [],
+      activeConversation: { cascadeId: '11111111-2222-3333-4444-555555555555', stepCount: 1, context: { totalTokens: 10000, limitTokens: 256000 } },
+      quotas: { pools: [] },
+    };
+
+    const mockWin = {
+      innerWidth: winWidth,
+      innerHeight: 800,
+      location: { pathname: '/c/11111111-2222-3333-4444-555555555555', search: '' },
+      __AGUsageMonitorBridge: {
+        port: 43111,
+        token: 'c'.repeat(64),
+        bundleVersion: 'ver-mac',
+        platform: platformKey,
+        stylesCss,
+        initialTelemetry: payload,
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      getComputedStyle: () => ({ paddingRight: '8px', getPropertyValue: () => '' }),
+      fetch: async () => ({ ok: true, status: 200, json: async () => payload }),
+    };
+    const mockDoc = {
+      hidden: false,
+      body,
+      head: makeNode('head'),
+      documentElement: docEl,
+      createElement: makeNode,
+      createElementNS: (_ns, t) => makeNode(t),
+      createTextNode: (txt) => ({ nodeType: 3, textContent: String(txt ?? ''), parentNode: null }),
+      getElementById: (id) => body.children.find((c) => c.id === id) || null,
+      querySelector: (s) => body.querySelector(s),
+      querySelectorAll: (s) => body.querySelectorAll(s),
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    const sb = {
+      window: mockWin,
+      document: mockDoc,
+      navigator: { language: 'zh-CN', platform: platformKey === 'darwin' ? 'MacIntel' : 'Win32' },
+      URLSearchParams,
+      AbortController,
+      queueMicrotask,
+      requestAnimationFrame: (fn) => setTimeout(fn, 0),
+      cancelAnimationFrame: clearTimeout,
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      Promise,
+      Math,
+      Date,
+      JSON,
+      Number,
+      String,
+      Boolean,
+      Array,
+      Object,
+      Map,
+      Set,
+      RegExp,
+      Error,
+      TypeError,
+      parseFloat,
+      parseInt,
+      isNaN,
+      Infinity,
+    };
+    sb.globalThis = sb;
+    vm.runInNewContext(appJs, sb);
+    const cap = body._foundCap || (function findCap(n) {
+      if (n.id === 'ag-usage-monitor-capsule') return n;
+      for (const c of n.children || []) { const r = findCap(c); if (r) return r; }
+      return null;
+    })(body);
+    return { ov: mockWin.__AGUsageMonitorOverlay, cap };
+  }
+
+  // 1. Fixed fallback without native anchor: macOS uses 12px right inset vs Windows 144px window-controls reserve
+  const macFixed = runOverlayForPlatform('darwin');
+  const winFixed = runOverlayForPlatform('win32');
+  try {
+    assert.equal(macFixed.cap.getAttribute('data-os'), 'mac');
+    assert.equal(macFixed.cap.style.right, '12px');
+    assert.equal(winFixed.cap.getAttribute('data-os'), 'default');
+    assert.equal(winFixed.cap.style.right, '144px');
+  } finally {
+    macFixed.ov.dispose();
+    winFixed.ov.dispose();
+  }
+
+  // 2. Fixed fallback with native top-right button at x=1230 on 1280px viewport: macOS hugs button at 56px instead of jumping to 144px
+  const macAnchored = runOverlayForPlatform('darwin', { auxLeft: 1230, winWidth: 1280 });
+  try {
+    assert.equal(macAnchored.cap.style.right, '56px');
+  } finally {
+    macAnchored.ov.dispose();
+  }
+
+  // 3. Flow titlebar narrow window (610px): macOS 80px traffic-light reserve retains 'wide' capsule while Windows 168px reserve collapses
+  const macNarrowFlow = runOverlayForPlatform('darwin', { withTitlebar: true, winWidth: 610 });
+  const winNarrowFlow = runOverlayForPlatform('win32', { withTitlebar: true, winWidth: 610 });
+  try {
+    assert.equal(macNarrowFlow.cap.getAttribute('data-layout'), 'wide');
+    assert.notEqual(winNarrowFlow.cap.getAttribute('data-layout'), 'wide');
+  } finally {
+    macNarrowFlow.ov.dispose();
+    winNarrowFlow.ov.dispose();
   }
 });

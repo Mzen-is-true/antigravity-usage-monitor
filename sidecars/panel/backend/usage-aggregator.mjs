@@ -13,8 +13,8 @@ import {
   createSpeedAccumulator,
   finishSpeed,
   parseIsoMs,
-} from '../speed-metrics.mjs';
-import { roundMetric, trajectoryCache } from './config.mjs';
+} from '../trajectory-metrics.mjs';
+import { listCachedTrajectoryEntries, roundMetric } from './config.mjs';
 import { loadExternalDeepStatsCache } from './local-scanner.mjs';
 import {
   computeStepCost,
@@ -28,6 +28,10 @@ import {
 function safeTok(val) {
   const n = Number(val);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+function normalizeOwnerAccount(val) {
+  return typeof val === 'string' ? val.trim().toLowerCase() : '';
 }
 
 /**
@@ -400,7 +404,8 @@ function sameUsageEntries(previous, current) {
     const before = previous[index];
     return entry.steps === before.steps && entry.cascadeId === before.cascadeId &&
       entry.rawCascadeId === before.rawCascadeId && entry.appSource === before.appSource &&
-      entry.isCurrentConv === before.isCurrentConv && entry.title === before.title;
+      entry.accountName === before.accountName && entry.isCurrentConv === before.isCurrentConv &&
+      entry.title === before.title;
   });
 }
 
@@ -452,7 +457,6 @@ function sameUsageWindows(previous, current, dates) {
  * @returns {{ entries: Array<object>, rootTitleMap: Map<string, string> }}
  */
 export function collectAccountConversationEntries({
-  currentAccountName = '',
   familySet = new Set(),
   titleByCascadeId = null,
 } = {}) {
@@ -460,7 +464,7 @@ export function collectAccountConversationEntries({
 
   // 构建大小写归一化的内存缓存与跨端深层缓存索引，彻底杜绝 `${appSource}:${cascadeId}` 键不匹配导致的双倍重复计费
   const allLiveByLower = new Map();
-  for (const [rawId, entry] of Object.entries(trajectoryCache)) {
+  for (const [rawId, entry] of listCachedTrajectoryEntries()) {
     const cidLower = String(rawId || '').toLowerCase();
     if (!cidLower || !entry || typeof entry !== 'object') continue;
     const prev = allLiveByLower.get(cidLower);
@@ -473,15 +477,6 @@ export function collectAccountConversationEntries({
   for (const ext of externalConvos.values()) {
     const extCidLower = String(ext?.cascadeId || '').toLowerCase();
     if (!extCidLower) continue;
-    const knownLive = allLiveByLower.get(extCidLower);
-    const ownerAccount = ext.accountName || knownLive?.accountName || '';
-    if (
-      ownerAccount &&
-      currentAccountName !== '' &&
-      ownerAccount !== currentAccountName
-    ) {
-      continue;
-    }
     const prevExt = externalByCid.get(extCidLower);
     if (!prevExt || (ext.steps?.length || 0) > (prevExt.steps?.length || 0)) {
       externalByCid.set(extCidLower, ext);
@@ -499,13 +494,6 @@ export function collectAccountConversationEntries({
   const entries = [];
 
   for (const [cidLower, entry] of allLiveByLower.entries()) {
-    if (
-      entry?.accountName &&
-      currentAccountName !== '' &&
-      entry.accountName !== currentAccountName
-    ) {
-      continue;
-    }
     const extMatch = externalByCid.get(cidLower);
     if (extMatch && (extMatch.steps?.length || 0) > (entry?.steps?.length || 0)) {
       continue;
@@ -523,6 +511,7 @@ export function collectAccountConversationEntries({
       isSubagent: isSub,
       title: rootTitleMap.get(groupCascadeId) || '',
       appSource: entry?.appSource || 'standalone',
+      accountName: entry?.accountName || extMatch?.accountName || '',
       lastModifiedMs: Number(entry?.lastModifiedMs || 0),
       steps: entry?.steps || [],
       isCurrentConv: familySet.has(cidLower),
@@ -547,6 +536,7 @@ export function collectAccountConversationEntries({
       isSubagent: isSub,
       title: rootTitleMap.get(groupCascadeId) || '',
       appSource: ext.appSource || 'ide',
+      accountName: ext.accountName || liveEntry?.accountName || '',
       lastModifiedMs: Number(ext.lastModifiedMs || 0),
       steps: ext.steps || [],
       isCurrentConv: familySet.has(extCidLower),
@@ -635,6 +625,9 @@ export function aggregateMultiWindowUsage({
   const hasDedicatedCarbonPool = poolCycleBuckets.has('Carbon');
   const hasDedicatedArgonPool = poolCycleBuckets.has('Argon');
   const poolByModel = new Map();
+  const quotaWeekBucket = createUsageBucket();
+  const normalizedQuotaAccount =
+    currentAccountName === null ? null : normalizeOwnerAccount(currentAccountName);
   const selectedAccountBucket = accountBuckets[selectedWindow.key] || createUsageBucket();
   const selectedSessionBucket = sessionBuckets[selectedWindow.key] || createUsageBucket();
   const perModelStats = new Map();
@@ -644,6 +637,11 @@ export function aggregateMultiWindowUsage({
   let latestSelectedStepMs = 0;
 
   const currentYear = new Date(nowMs).getFullYear();
+  const monthBoundsMs = Array.from({ length: 13 }, (_, idx) =>
+    new Date(currentYear, idx, 1).getTime()
+  );
+  const yearStartMs = monthBoundsMs[0];
+  const nextYearStartMs = monthBoundsMs[12];
   const monthlySeries = Array.from({ length: 12 }, (_, idx) => ({
     month: idx + 1,
     label: `${idx + 1}月`,
@@ -663,7 +661,6 @@ export function aggregateMultiWindowUsage({
   };
   const perSourceStats = new Map();
   const { entries: allEntriesToAggregate, rootTitleMap } = collectAccountConversationEntries({
-    currentAccountName,
     familySet,
     titleByCascadeId,
   });
@@ -676,7 +673,10 @@ export function aggregateMultiWindowUsage({
   const windows = [selectedWindow, ...Object.values(presetWindows), ...quotaWindows];
   const snapshot = lastUsageSnapshot;
   const sameSnapshot = modelInputs && snapshot && timeZone === snapshot.timeZone &&
-    currentYear === snapshot.currentYear && modelInputs.catalogRevision === snapshot.modelInputs.catalogRevision &&
+    currentYear === snapshot.currentYear &&
+    normalizedQuotaAccount === snapshot.normalizedQuotaAccount &&
+    modelInputs.catalogRevision === snapshot.modelInputs.catalogRevision &&
+    modelInputs.phaseEpoch === snapshot.modelInputs.phaseEpoch &&
     isDeepStrictEqual(modelInputs.dynamicModelMap, snapshot.modelInputs.dynamicModelMap) &&
     sameUsageEntries(snapshot.entries, allEntriesToAggregate);
   const previous = sameSnapshot ? snapshot.ranges.get(selectedWindow.key) : null;
@@ -697,11 +697,19 @@ export function aggregateMultiWindowUsage({
 
   for (const entry of allEntriesToAggregate) {
     const { cascadeId, rawCascadeId, isSubagent, isCurrentConv, lastModifiedMs: entryModMs } = entry;
+    const entryOwner = normalizeOwnerAccount(entry.accountName);
     const srcKey = entry.appSource || 'standalone';
     const srcName = SOURCE_LABELS[srcKey] || `Antigravity (${srcKey})`;
 
     for (const st of entry.steps || []) {
       if (!st || typeof st !== 'object') continue;
+      const stepOwner = normalizeOwnerAccount(st.accountName) || entryOwner;
+      const includeInQuotaPools =
+        normalizedQuotaAccount === null
+          ? false
+          : normalizedQuotaAccount === ''
+            ? true
+            : stepOwner === normalizedQuotaAccount;
       const mInfo = resolveStepModel(st);
       const inTok = safeTok(st.inputTokens);
       const cacheTok = safeTok(st.cacheReadTokens);
@@ -722,20 +730,24 @@ export function aggregateMultiWindowUsage({
       const stepUsage = { inTok, cacheTok, outTok, thinkTok, respTok, stepTotalTokens,
         resolvedCost, savedCost, unpriced };
 
-      if (tMs > 0) {
-        const stepDate = new Date(tMs);
-        if (stepDate.getFullYear() === currentYear) {
-          const mBucket = monthlySeries[stepDate.getMonth()];
-          if (mBucket) {
-            mBucket.calls += 1;
-            mBucket.inputTokens += inTok;
-            mBucket.cacheReadTokens += cacheTok;
-            mBucket.responseTokens += respTok;
-            mBucket.thinkingTokens += thinkTok;
-            mBucket.totalTokens += stepTotalTokens;
-            mBucket.costUsd += resolvedCost;
-            mBucket.unpricedCalls = (mBucket.unpricedCalls || 0) + unpriced;
+      if (tMs >= yearStartMs && tMs < nextYearStartMs) {
+        let monthIdx = 11;
+        for (let m = 0; m < 12; m++) {
+          if (tMs < monthBoundsMs[m + 1]) {
+            monthIdx = m;
+            break;
           }
+        }
+        const mBucket = monthlySeries[monthIdx];
+        if (mBucket) {
+          mBucket.calls += 1;
+          mBucket.inputTokens += inTok;
+          mBucket.cacheReadTokens += cacheTok;
+          mBucket.responseTokens += respTok;
+          mBucket.thinkingTokens += thinkTok;
+          mBucket.totalTokens += stepTotalTokens;
+          mBucket.costUsd += resolvedCost;
+          mBucket.unpricedCalls = (mBucket.unpricedCalls || 0) + unpriced;
         }
       }
 
@@ -746,10 +758,13 @@ export function aggregateMultiWindowUsage({
           if (isCurrentConv) {
             accumulateStepIntoBucket(sessionBuckets[k], stepUsage, cascadeId);
           }
+          if (k === 'week' && includeInQuotaPools) {
+            accumulateStepIntoBucket(quotaWeekBucket, stepUsage, cascadeId);
+          }
         }
       }
 
-      if (poolCycleBuckets.size > 0 && tMs > 0 && tMs <= nowMs) {
+      if (includeInQuotaPools && poolCycleBuckets.size > 0 && tMs > 0 && tMs <= nowMs) {
         let cachedPool = poolByModel.get(mInfo);
         if (!cachedPool || cachedPool.key !== st.modelKey ||
             cachedPool.response !== st.responseModel || cachedPool.displayName !== st.modelDisplayName) {
@@ -1084,6 +1099,7 @@ export function aggregateMultiWindowUsage({
 
   const todayBucket = finalizedPresets.today.account;
   const weekBucket = finalizedPresets.week.account;
+  const finalizedQuotaWeekBucket = finalizeUsageBucket(quotaWeekBucket);
   const modelBreakdown = finalizeModelBreakdownMap(perModelStats);
 
   const formatCycleSummary = (b) => {
@@ -1138,6 +1154,7 @@ export function aggregateMultiWindowUsage({
     monthlySeries,
     todayBucket,
     weekBucket,
+    quotaWeekBucket: finalizedQuotaWeekBucket,
     modelBreakdown,
     poolCycleStats,
     poolsWeeklySummary,
@@ -1145,7 +1162,13 @@ export function aggregateMultiWindowUsage({
   if (modelInputs) {
     if (!sameSnapshot) {
       lastUsageSnapshot = {
-        timeZone, modelInputs, currentYear, entries: allEntriesToAggregate, dates: null, ranges: new Map(),
+        timeZone,
+        modelInputs,
+        currentYear,
+        normalizedQuotaAccount,
+        entries: allEntriesToAggregate,
+        dates: null,
+        ranges: new Map(),
       };
     }
     const { ranges } = lastUsageSnapshot;

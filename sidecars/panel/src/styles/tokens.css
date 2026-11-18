@@ -6,6 +6,10 @@
 
 :root,
 :host {
+  /* Cross-Platform Typography Stacks (macOS SF Pro / SF Mono + Windows / Linux Fallbacks) */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, monospace;
+
   /* Architectural Geometry: Only Top Nav uses --radius-pill */
   --radius-pill: 999px;
   --radius-sm: 4px;
@@ -43,16 +47,15 @@
   --border-strong: color-mix(in srgb, var(--border-hairline) 72%, var(--text-primary) 28%);
 
   /* Typography Hierarchy & Scalable Font Tokens */
-  --ui-font-scale: 1;
-  --fs-2xs: calc(9.5px * var(--ui-font-scale, 1));
-  --fs-xs: calc(10px * var(--ui-font-scale, 1));
-  --fs-sm: calc(10.5px * var(--ui-font-scale, 1));
-  --fs-md: calc(11px * var(--ui-font-scale, 1));
-  --fs-base-sm: calc(11.5px * var(--ui-font-scale, 1));
-  --fs-base: calc(12px * var(--ui-font-scale, 1));
-  --fs-body: calc(12.5px * var(--ui-font-scale, 1));
-  --fs-lg: calc(14.5px * var(--ui-font-scale, 1));
-  --fs-hero: calc(17px * var(--ui-font-scale, 1));
+  --fs-2xs: calc(10.5px * var(--ui-font-scale, 1));
+  --fs-xs: calc(11px * var(--ui-font-scale, 1));
+  --fs-sm: calc(11.5px * var(--ui-font-scale, 1));
+  --fs-md: calc(12px * var(--ui-font-scale, 1));
+  --fs-base-sm: calc(12.5px * var(--ui-font-scale, 1));
+  --fs-base: calc(13px * var(--ui-font-scale, 1));
+  --fs-body: calc(13px * var(--ui-font-scale, 1));
+  --fs-lg: calc(15px * var(--ui-font-scale, 1));
+  --fs-hero: calc(18px * var(--ui-font-scale, 1));
 
   --text-primary: var(--foreground, var(--vscode-foreground, var(--vscode-editor-foreground, hsl(215 22% 15%))));
   --text-secondary: var(--muted-foreground, var(--vscode-descriptionForeground, hsl(215 12% 44%)));
@@ -118,6 +121,46 @@
   --space-3: 8px;
   --space-4: 10px;
   --space-5: 12px;
+}
+
+:root[data-font-scale="sm"],
+:host([data-font-scale="sm"]),
+[data-font-scale="sm"] {
+  --ui-font-scale: 0.92;
+  --ui-panel-scale: 1;
+}
+
+:root[data-font-scale="md"],
+:host([data-font-scale="md"]),
+[data-font-scale="md"] {
+  --ui-font-scale: 1;
+  --ui-panel-scale: 1;
+}
+
+:root[data-font-scale="lg"],
+:host([data-font-scale="lg"]),
+[data-font-scale="lg"] {
+  --ui-font-scale: 1.14;
+  --ui-panel-scale: 1.09;
+}
+
+:root[data-font-scale="xl"],
+:host([data-font-scale="xl"]),
+[data-font-scale="xl"] {
+  --ui-font-scale: 1.28;
+  --ui-panel-scale: 1.18;
+}
+
+[data-font-scale] {
+  --fs-2xs: calc(10.5px * var(--ui-font-scale, 1));
+  --fs-xs: calc(11px * var(--ui-font-scale, 1));
+  --fs-sm: calc(11.5px * var(--ui-font-scale, 1));
+  --fs-md: calc(12px * var(--ui-font-scale, 1));
+  --fs-base-sm: calc(12.5px * var(--ui-font-scale, 1));
+  --fs-base: calc(13px * var(--ui-font-scale, 1));
+  --fs-body: calc(13px * var(--ui-font-scale, 1));
+  --fs-lg: calc(15px * var(--ui-font-scale, 1));
+  --fs-hero: calc(18px * var(--ui-font-scale, 1));
 }
 
 @media (prefers-color-scheme: dark) {

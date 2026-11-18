@@ -14,6 +14,12 @@ import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
+  WINDOW_BRIDGE_KEY,
+  WINDOW_BRIDGE_ROUTE_KEY,
+  WINDOW_OVERLAY_KEY,
+  WINDOW_OVERLAY_METHODS,
+} from '../shared/window-bridge-protocol.mjs';
+import {
   DATA_DIR,
   computeRuntimeCodeVersion,
   loadJson,
@@ -23,6 +29,13 @@ import {
   saveJson,
 } from './config.mjs';
 import { createContextWindowSyncExpression } from './context-windows.mjs';
+
+const windowBridgeRef = `window[${JSON.stringify(WINDOW_BRIDGE_KEY)}]`;
+const windowOverlayRef = `window[${JSON.stringify(WINDOW_OVERLAY_KEY)}]`;
+const windowBridgeRouteKey = JSON.stringify(WINDOW_BRIDGE_ROUTE_KEY);
+const overlayMethods = Object.fromEntries(
+  Object.entries(WINDOW_OVERLAY_METHODS).map(([method, key]) => [method, JSON.stringify(key)])
+);
 
 const BRIDGE_MAX_BODY_BYTES = 64 * 1024;
 const ALLOWED_BRIDGE_PATHS = new Set([
@@ -68,6 +81,10 @@ export function resolveDevToolsPortCandidates(
     return [
       join(homeDir, 'Library', 'Application Support', 'Antigravity', 'DevToolsActivePort'),
       join(homeDir, 'Library', 'Application Support', 'Antigravity IDE', 'DevToolsActivePort'),
+      join(homeDir, 'Library', 'Application Support', 'antigravity', 'DevToolsActivePort'),
+      join(homeDir, 'Library', 'Application Support', 'antigravity-ide', 'DevToolsActivePort'),
+      join(homeDir, '.config', 'Antigravity', 'DevToolsActivePort'),
+      join(homeDir, '.config', 'Antigravity IDE', 'DevToolsActivePort'),
     ];
   }
   const configHome = env?.XDG_CONFIG_HOME || join(homeDir, '.config');
@@ -1408,10 +1425,10 @@ export function createWindowBridgeController(options) {
 
     const disposeExpr = `(() => {
       try {
-        const existed = Boolean(window.__AGUsageMonitorOverlay || window.__AGUsageMonitorBridge);
-        window.__AGUsageMonitorOverlay?.dispose?.();
-        delete window.__AGUsageMonitorOverlay;
-        delete window.__AGUsageMonitorBridge;
+        const existed = Boolean(${windowOverlayRef} || ${windowBridgeRef});
+        ${windowOverlayRef}?.[${overlayMethods.dispose}]?.();
+        delete ${windowOverlayRef};
+        delete ${windowBridgeRef};
         return existed;
       } catch {
         return false;
@@ -1448,11 +1465,11 @@ export function createWindowBridgeController(options) {
     const { port, token } = await ensureBridgeServer();
     const probeExpr = `(() => {
       try {
-        const ov = window.__AGUsageMonitorOverlay;
-        const br = window.__AGUsageMonitorBridge;
-        const alive = Boolean(ov && typeof ov.ensureAlive === 'function' && ov.ensureAlive());
-        const dockKind = String(ov?.getDockKind?.() || '');
-        const clientMountMode = String(ov?.getMountMode?.() || '');
+        const ov = ${windowOverlayRef};
+        const br = ${windowBridgeRef};
+        const alive = Boolean(ov && typeof ov[${overlayMethods.ensureAlive}] === 'function' && ov[${overlayMethods.ensureAlive}]());
+        const dockKind = String(ov?.[${overlayMethods.getDockKind}]?.() || '');
+        const clientMountMode = String(ov?.[${overlayMethods.getMountMode}]?.() || '');
         const visible = Boolean(
           (window.innerWidth === undefined || Number(window.innerWidth) > 80) &&
           (window.innerHeight === undefined || Number(window.innerHeight) > 80) &&
@@ -1484,7 +1501,7 @@ export function createWindowBridgeController(options) {
           bridgePort: Number(br?.port || 0),
           hasToken: Boolean(br?.token),
           transportMode: String(br?.transportMode || 'http'),
-          hostRouteCascadeId: String(br?.hostRouteCascadeId || ''),
+          hostRouteCascadeId: String(br?.[${windowBridgeRouteKey}] || ''),
           routeCascadeId,
           rpcBatch,
         };
@@ -1522,12 +1539,16 @@ export function createWindowBridgeController(options) {
           }
           if (snap.bundleVersion === bundleVersion) {
             if (snap.bridgePort !== port || snap.hasToken !== true) {
-              const rebindExpr = `window.__AGUsageMonitorOverlay?.updateBridge?.(${JSON.stringify({ port, token })})`;
+              const rebindExpr = `${windowOverlayRef}?.[${overlayMethods.updateBridge}]?.(${JSON.stringify({ port, token })})`;
               await evaluateOnTarget(wsUrl, rebindExpr);
             }
             let effectiveDockKind = String(snap.dockKind || '');
             if (snap.clientMountMode && snap.clientMountMode !== mountMode) {
-              const modeSyncExpr = `(() => { window.__AGUsageMonitorOverlay?.applyMountMode?.(${JSON.stringify(mountMode)}); return String(window.__AGUsageMonitorOverlay?.getDockKind?.() || ''); })()`;
+              const modeSyncExpr = `(() => {
+                const overlay = ${windowOverlayRef};
+                overlay?.[${overlayMethods.applyMountMode}]?.(${JSON.stringify(mountMode)});
+                return String(overlay?.[${overlayMethods.getDockKind}]?.() || '');
+              })()`;
               const modeRes = await evaluateOnTarget(wsUrl, modeSyncExpr);
               if (typeof modeRes?.result?.result?.value === 'string') {
                 effectiveDockKind = modeRes.result.result.value;
@@ -1538,7 +1559,11 @@ export function createWindowBridgeController(options) {
               ideRouteId &&
               String(snap.hostRouteCascadeId || '') !== ideRouteId
             ) {
-              const routeSyncExpr = `(() => { if (window.__AGUsageMonitorBridge) { window.__AGUsageMonitorBridge.hostRouteCascadeId = ${JSON.stringify(ideRouteId)}; } window.__AGUsageMonitorOverlay?.syncHostRoute?.(); })()`;
+              const routeSyncExpr = `(() => {
+                const bridge = ${windowBridgeRef};
+                if (bridge) bridge[${windowBridgeRouteKey}] = ${JSON.stringify(ideRouteId)};
+                ${windowOverlayRef}?.[${overlayMethods.syncHostRoute}]?.();
+              })()`;
               await evaluateOnTarget(wsUrl, routeSyncExpr);
             }
             aliveCount += 1;
@@ -1554,7 +1579,7 @@ export function createWindowBridgeController(options) {
               sawCdpTransport = true;
               const rpcResults = await executeRpcBatch(snap.rpcBatch);
               relayedRpcCount += rpcResults.length;
-              const deliverExpr = `window.__AGUsageMonitorOverlay?.deliverRpc?.(${JSON.stringify(rpcResults)})`;
+              const deliverExpr = `${windowOverlayRef}?.[${overlayMethods.deliverRpc}]?.(${JSON.stringify(rpcResults)})`;
               await evaluateOnTarget(wsUrl, deliverExpr);
             }
             return {
@@ -1595,13 +1620,27 @@ export function createWindowBridgeController(options) {
         port,
         token,
         bundleVersion,
+        platform: String(platform || ''),
         mountMode,
-        hostRouteCascadeId: ideRouteId || '',
+        [WINDOW_BRIDGE_ROUTE_KEY]: ideRouteId || '',
         isIdeChatFrame: Boolean(isIdeChatFrame),
         stylesCss: cachedAssets.stylesCss,
         initialTelemetry,
       });
-      const injectionScript = `(() => {\nwindow.__AGUsageMonitorBridge = ${bridgeConfigJson};\n})();\n${cachedAssets.appJs}\n(() => { const ov = window.__AGUsageMonitorOverlay; const alive = Boolean(ov && ov.ensureAlive && ov.ensureAlive()); return { alive, dockKind: String(ov?.getDockKind?.() || ''), visible: Boolean((window.innerWidth === undefined || Number(window.innerWidth) > 80) && (window.innerHeight === undefined || Number(window.innerHeight) > 80) && !(typeof document !== 'undefined' && document?.hidden === true)) }; })();`;
+      const injectionScript = `(() => {
+        ${windowBridgeRef} = ${bridgeConfigJson};
+      })();
+      ${cachedAssets.appJs}
+      (() => {
+        const ov = ${windowOverlayRef};
+        const alive = Boolean(ov?.[${overlayMethods.ensureAlive}]?.());
+        const visible = Boolean(
+          (window.innerWidth === undefined || Number(window.innerWidth) > 80) &&
+          (window.innerHeight === undefined || Number(window.innerHeight) > 80) &&
+          !(typeof document !== 'undefined' && document?.hidden === true)
+        );
+        return { alive, dockKind: String(ov?.[${overlayMethods.getDockKind}]?.() || ''), visible };
+      })();`;
 
       const evalRes = await evaluateOnTarget(wsUrl, injectionScript);
       const evalVal = evalRes?.result?.result?.value;
@@ -1748,7 +1787,17 @@ export function createWindowBridgeController(options) {
           const { targets } = await collectAllMainWindowTargets(cdpPorts).catch(() => ({
             targets: [],
           }));
-          const disposeExpr = `(() => { try { window.__AGUsageMonitorContextWindows?.dispose?.(); window.__AGUsageMonitorOverlay?.dispose?.(); delete window.__AGUsageMonitorOverlay; delete window.__AGUsageMonitorBridge; return true; } catch { return false; } })()`;
+          const disposeExpr = `(() => {
+            try {
+              window.__AGUsageMonitorContextWindows?.dispose?.();
+              ${windowOverlayRef}?.[${overlayMethods.dispose}]?.();
+              delete ${windowOverlayRef};
+              delete ${windowBridgeRef};
+              return true;
+            } catch {
+              return false;
+            }
+          })()`;
           const allUrls = [
             ...targets.map((t) => String(t.webSocketDebuggerUrl || '')).filter(Boolean),
             ...collectAllChatDebuggerUrls(targets),

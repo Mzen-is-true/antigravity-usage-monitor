@@ -1,27 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { backendHarness } from './backend-harness.mjs';
 import {
   extractContextBreakdown,
   extractModelSteps,
   normalizeCachedStep,
-} from '../speed-metrics.mjs';
+} from '../trajectory-metrics.mjs';
 import {
   formatCountdown,
   formatUsd,
   speedReasonText,
 } from '../src/core/formatters.js';
 import { createReactiveStore } from '../src/core/reactive.js';
-import { stripModuleSyntax } from '../scripts/build-bundle.mjs';
+import { buildBundle, stripModuleSyntax } from '../scripts/build-bundle.mjs';
 
 const nowMs = Date.now();
 const nowIso = new Date(nowMs - 5_000).toISOString();
 const doneIso = new Date(nowMs - 3_000).toISOString();
+const promoMs = Date.parse('2026-11-17T12:00:00Z');
+const promoNowIso = new Date(promoMs - 5_000).toISOString();
+const promoDoneIso = new Date(promoMs - 3_000).toISOString();
 
 test('BUG-01 & INCON-01: Google-proxied Claude/GPT/o-series never misclassify as Gemini, and M429/M322/M149/M20 resolve accurately', () => {
   const h = backendHarness({
+    clock: () => promoMs,
     userStatus: {
       cascadeModelConfigData: {
         clientModelConfigs: [
@@ -70,7 +76,7 @@ test('BUG-01 & INCON-01: Google-proxied Claude/GPT/o-series never misclassify as
   const m20 = h.resolveModelInfo('MODEL_PLACEHOLDER_M20', new Map(), 'API_PROVIDER_GOOGLE_GEMINI');
   assert.equal(m20.modelId, 'gemini-3.5-flash');
 
-  // Gemini Hydrogen ($1.50/$0.15/$7.50 unified pricing) & Helix (3.5 Flash Lite pricing), shared Gemini pool
+  // Gemini Hydrogen ($1.50/$0.075/$7.50) & Helix ($0.30/$0.015/$2.50), shared Gemini pool
   const dynHydrogenMap = new Map([
     ['MODEL_PLACEHOLDER_M480', { modelId: '', label: 'Gemini 4 Hydrogen (High)' }],
     ['MODEL_PLACEHOLDER_M481', { modelId: '', label: 'Gemini 4 Hydrogen (Low)' }],
@@ -81,13 +87,13 @@ test('BUG-01 & INCON-01: Google-proxied Claude/GPT/o-series never misclassify as
   assert.equal(hydroHigh.shortName, 'hydrogen-4-high');
   assert.deepEqual(
     { i: hydroHigh.pricing?.input, c: hydroHigh.pricing?.cache, o: hydroHigh.pricing?.output },
-    { i: 1.5, c: 0.15, o: 7.5 }
+    { i: 1.5, c: 0.075, o: 7.5 }
   );
   const hydroLow = h.resolveModelInfo('MODEL_PLACEHOLDER_M481', dynHydrogenMap);
   assert.equal(hydroLow.shortName, 'hydrogen-4-low');
   assert.deepEqual(
     { i: hydroLow.pricing?.input, c: hydroLow.pricing?.cache, o: hydroLow.pricing?.output },
-    { i: 1.5, c: 0.15, o: 7.5 }
+    { i: 1.5, c: 0.075, o: 7.5 }
   );
   const hydroCodename = h.resolveModelInfo('gemini-hydrogen');
   assert.equal(hydroCodename.family, 'Gemini');
@@ -100,7 +106,7 @@ test('BUG-01 & INCON-01: Google-proxied Claude/GPT/o-series never misclassify as
   assert.equal(helixInfo.shortName, 'helix-4');
   assert.deepEqual(
     { i: helixInfo.pricing?.input, c: helixInfo.pricing?.cache, o: helixInfo.pricing?.output },
-    { i: 0.3, c: 0.03, o: 2.5 }
+    { i: 0.3, c: 0.015, o: 2.5 }
   );
   const helixCodename = h.resolveModelInfo('gemini-helix');
   assert.equal(helixCodename.family, 'Gemini');
@@ -124,7 +130,9 @@ test('BUG-01 & INCON-01: Google-proxied Claude/GPT/o-series never misclassify as
   assert.equal(quotaPoolsMap.get('Gemini')?.isAvailable, true);
 });
 
-test('BUG-02 & BUG-11: ide:<uuid> external sessions do not double-count live conversations, cross-account entries are isolated, and orphan subagents never leak to top-level list', async () => {
+test('BUG-02 & BUG-11: ide:<uuid> external sessions do not double-count live conversations, only quota pools isolate cross-account entries, and orphan subagents never leak to top-level list', async () => {
+  const reset5hIso = new Date(Date.now() + 4 * 3600_000).toISOString();
+  const resetWkIso = new Date(Date.now() + 6 * 24 * 3600_000).toISOString();
   const stepObj = {
     status: 'CORTEX_STEP_STATUS_DONE',
     metadata: {
@@ -141,6 +149,17 @@ test('BUG-02 & BUG-11: ide:<uuid> external sessions do not double-count live con
   };
   const h = backendHarness({
     userStatus: { email: 'alice@example.com' },
+    quotaSummary: {
+      groups: [
+        {
+          displayName: 'Gemini Models',
+          buckets: [
+            { bucketId: 'gemini-5h', window: '5h', remainingFraction: 0.9, resetTime: reset5hIso },
+            { bucketId: 'gemini-weekly', window: 'weekly', remainingFraction: 0.95, resetTime: resetWkIso },
+          ],
+        },
+      ],
+    },
     deepStats: {
       accountName: 'alice@example.com',
       perConvo: {
@@ -153,7 +172,7 @@ test('BUG-02 & BUG-11: ide:<uuid> external sessions do not double-count live con
             { ts: doneIso, model: 'MODEL_PLACEHOLDER_M318', inp: 10000, cache: 20000, out: 5000, reasoning: 0 },
           ],
         },
-        // Different account -> must be excluded when logged in as alice@example.com!
+        // Different account -> retained in global consumption, isolated out of Alice's quota pools!
         'ide:bob-conv': {
           accountName: 'bob@example.com',
           appSource: 'ide',
@@ -181,15 +200,147 @@ test('BUG-02 & BUG-11: ide:<uuid> external sessions do not double-count live con
   });
 
   const p = await h.buildTelemetryPayloadInternal('abcd-1234', false, { range: 'all' });
-  // ide:AbCd-1234 has 2 entries vs live abcd-1234's 1 step -> deduplicated (no 1 + 2 = 3 double counting!), bob excluded!
-  assert.equal(p.consumption.account.conversationsCount, 1);
-  assert.equal(p.consumption.account.calls, 2);
-  assert.equal(p.consumption.account.totalTokens, 70_000);
+  // ide:AbCd-1234 (70k) deduplicates live abcd-1234 (35k); global consumption retains ide:bob-conv (100k) + orphan-sub (35k)
+  assert.equal(p.consumption.account.conversationsCount, 3);
+  assert.equal(p.consumption.account.calls, 4);
+  assert.equal(p.consumption.account.totalTokens, 205_000);
+  // Quota pools & weekly cycle strictly isolate to alice@example.com (2 calls = 70,000 tokens)
+  const geminiPool = p.quotas.pools.find((pool) => pool.poolKey === 'Gemini');
+  assert.equal(geminiPool.cycle5h.calls, 2);
+  assert.equal(geminiPool.cycle5h.tokens, 70_000);
+  assert.equal(geminiPool.cycleWeekly.calls, 2);
+  assert.equal(geminiPool.cycleWeekly.tokens, 70_000);
+  assert.equal(p.quotas.weekly.calls, 2);
+  assert.equal(p.quotas.weekly.tokens, 70_000);
   assert.equal(
     p.conversations.some((c) => c.cascadeId === 'orphan-sub'),
     false,
     'orphan subagent must not appear in top-level conversation dropdown'
   );
+});
+
+test('account switch preserves conversation list, locked session steps, and consumption history while isolating quota pools per step across mid-conversation switches', async () => {
+  const baseMs = Date.now() - 60_000;
+  const reset5hIso = new Date(baseMs + 4 * 3600_000).toISOString();
+  const resetWkIso = new Date(baseMs + 6 * 24 * 3600_000).toISOString();
+  const makeStepAt = (idx, inTok, outTok, offsetMs) => ({
+    type: 'CORTEX_STEP_TYPE_PLANNER_RESPONSE',
+    status: 'CORTEX_STEP_STATUS_DONE',
+    metadata: {
+      sourceTrajectoryStepInfo: { stepIndex: idx },
+      createdAt: new Date(baseMs + offsetMs).toISOString(),
+      completedAt: new Date(baseMs + offsetMs + 1000).toISOString(),
+      modelUsage: {
+        model: 'MODEL_PLACEHOLDER_M318',
+        inputTokens: String(inTok),
+        cacheReadTokens: '0',
+        outputTokens: String(outTok),
+      },
+    },
+  });
+  const makeQuota = (rem5h, remWk) => ({
+    groups: [
+      {
+        displayName: 'Gemini Models',
+        buckets: [
+          { bucketId: 'gemini-5h', window: '5h', remainingFraction: rem5h, resetTime: reset5hIso },
+          { bucketId: 'gemini-weekly', window: 'weekly', remainingFraction: remWk, resetTime: resetWkIso },
+        ],
+      },
+    ],
+  });
+
+  const sharedStep1 = makeStepAt(1, 25_000, 5_000, 1_000); // 30,000
+  const sharedStep2 = makeStepAt(2, 25_000, 5_000, 3_000); // 30,000
+  const aliceOldStep = makeStepAt(1, 35_000, 5_000, 5_000); // 40,000
+
+  const h = backendHarness({
+    userStatus: { email: 'alice@example.com', userTier: { name: 'Google AI Ultra' } },
+    quotaSummary: makeQuota(0.8, 0.9),
+    summaries: {
+      'conv-shared': {
+        stepCount: 2,
+        lastModifiedTime: new Date(baseMs + 4_000).toISOString(),
+        status: 'IDLE',
+        annotations: { title: 'Greeting and Hello' },
+      },
+      'conv-alice-old': {
+        stepCount: 1,
+        lastModifiedTime: new Date(baseMs + 6_000).toISOString(),
+        status: 'IDLE',
+        annotations: { title: 'Earlier Alice Session' },
+      },
+    },
+    trajectories: {
+      'conv-shared': { trajectory: { steps: [sharedStep1, sharedStep2] } },
+      'conv-alice-old': { trajectory: { steps: [aliceOldStep] } },
+    },
+  });
+
+  // 1. Initial state under Alice: 3 calls = 100,000 tokens in both consumption and Alice's quota pools
+  const pAlice = await h.buildTelemetryPayloadInternal('conv-shared', false, { range: 'all' });
+  assert.equal(pAlice.conversations.length, 2);
+  assert.equal(pAlice.activeConversation.cascadeId, 'conv-shared');
+  assert.equal(pAlice.activeConversation.stepCount, 2);
+  assert.equal(pAlice.consumption.account.calls, 3);
+  assert.equal(pAlice.consumption.account.totalTokens, 100_000);
+  assert.equal(pAlice.quotas.weekly.calls, 3);
+  assert.equal(pAlice.quotas.weekly.tokens, 100_000);
+
+  // 2. Switch to Bob and create 1 new step (15,900 tokens) in conv-bob while keeping conv-shared locked
+  const bobStep1 = makeStepAt(1, 15_552, 348, 10_000); // 15,900
+  h.state.userStatus = { email: 'bob@example.com', userTier: { name: 'Google AI Ultra' } };
+  h.state.quotaSummary = makeQuota(0.977, 0.994);
+  h.state.summaries['conv-bob'] = {
+    stepCount: 1,
+    lastModifiedTime: new Date(baseMs + 11_000).toISOString(),
+    status: 'IDLE',
+    annotations: { title: 'New Bob Session' },
+  };
+  h.state.trajectories['conv-bob'] = { trajectory: { steps: [bobStep1] } };
+
+  const pBob = await h.buildTelemetryPayloadInternal('conv-shared', false, { range: 'all' });
+  assert.equal(pBob.conversations.length, 3, 'All historical conversations remain visible after account switch');
+  assert.equal(pBob.activeConversation.cascadeId, 'conv-shared', 'Locked conversation stays selected');
+  assert.equal(pBob.activeConversation.stepCount, 2, 'Step details of locked conversation are preserved');
+  assert.equal(pBob.consumption.account.calls, 4, 'Global consumption retains all 4 calls across accounts');
+  assert.equal(pBob.consumption.account.totalTokens, 115_900);
+  const bobGemini = pBob.quotas.pools.find((pool) => pool.poolKey === 'Gemini');
+  assert.equal(bobGemini.cycle5h.calls, 1, 'Quota 5h isolates strictly to Bob');
+  assert.equal(bobGemini.cycle5h.tokens, 15_900);
+  assert.equal(bobGemini.cycleWeekly.tokens, 15_900);
+  assert.equal(pBob.quotas.weekly.calls, 1);
+  assert.equal(pBob.quotas.weekly.tokens, 15_900);
+
+  // 3. Continue chatting inside conv-shared while logged in as Bob (step #3 = 25,000 tokens)
+  const sharedStep3ByBob = makeStepAt(3, 24_000, 1_000, 20_000); // 25,000
+  h.state.summaries['conv-shared'] = {
+    ...h.state.summaries['conv-shared'],
+    stepCount: 3,
+    lastModifiedTime: new Date(baseMs + 21_000).toISOString(),
+  };
+  h.state.trajectories['conv-shared'] = {
+    trajectory: { steps: [sharedStep1, sharedStep2, sharedStep3ByBob] },
+  };
+
+  const pBobContinued = await h.buildTelemetryPayloadInternal('conv-shared', false, { range: 'all' });
+  assert.equal(pBobContinued.activeConversation.stepCount, 3);
+  assert.equal(pBobContinued.consumption.account.calls, 5);
+  assert.equal(pBobContinued.consumption.account.totalTokens, 140_900);
+  const bobGeminiAfter = pBobContinued.quotas.pools.find((pool) => pool.poolKey === 'Gemini');
+  assert.equal(bobGeminiAfter.cycle5h.calls, 2, 'Bob quota includes conv-bob + his new step #3 in conv-shared');
+  assert.equal(bobGeminiAfter.cycle5h.tokens, 40_900);
+  assert.equal(pBobContinued.quotas.weekly.calls, 2);
+  assert.equal(pBobContinued.quotas.weekly.tokens, 40_900);
+
+  // 4. Switch back to Alice -> Alice quota remains strictly her 3 calls (100,000 tokens)
+  h.state.userStatus = { email: 'alice@example.com', userTier: { name: 'Google AI Ultra' } };
+  h.state.quotaSummary = makeQuota(0.8, 0.9);
+  const pAliceBack = await h.buildTelemetryPayloadInternal('conv-shared', false, { range: 'all' });
+  assert.equal(pAliceBack.consumption.account.calls, 5);
+  assert.equal(pAliceBack.consumption.account.totalTokens, 140_900);
+  assert.equal(pAliceBack.quotas.weekly.calls, 3);
+  assert.equal(pAliceBack.quotas.weekly.tokens, 100_000);
 });
 
 test('BUG-03, BUG-12 & BUG-16: negative/NaN token sanitization, deferred costUsd rounding, and dynamicModelMap default', async () => {
@@ -222,8 +373,8 @@ test('BUG-03, BUG-12 & BUG-16: negative/NaN token sanitization, deferred costUsd
     status: 'CORTEX_STEP_STATUS_DONE',
     metadata: {
       sourceTrajectoryStepInfo: { stepIndex: idx + 1 },
-      createdAt: nowIso,
-      completedAt: doneIso,
+      createdAt: promoNowIso,
+      completedAt: promoDoneIso,
       modelUsage: {
         model: 'MODEL_PLACEHOLDER_M318', // gemini-3.8-flash-high: $0.75/1M input, $3.75/1M output
         inputTokens: '0',
@@ -233,7 +384,8 @@ test('BUG-03, BUG-12 & BUG-16: negative/NaN token sanitization, deferred costUsd
     },
   }));
   const h = backendHarness({
-    summaries: { micro: { stepCount: 100, lastModifiedTime: doneIso, status: 'IDLE' } },
+    clock: () => promoMs,
+    summaries: { micro: { stepCount: 100, lastModifiedTime: promoDoneIso, status: 'IDLE' } },
     trajectories: { micro: { trajectory: { steps: microSteps } } },
   });
   const p = await h.buildTelemetryPayloadInternal('micro', false, { range: 'today' });
@@ -420,6 +572,31 @@ test('BUG-20 & BUG-24: reactive store microtask deduplication, stripModuleSyntax
   assert.ok(appBundle.trimEnd().endsWith('})();'));
 });
 
+test('bundle validation rejects incompatible imports and duplicate bindings before touching output', (t) => {
+  const tempDir = fs.mkdtempSync(fileURLToPath(new URL('./.bundle-test-', import.meta.url)));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }));
+  for (const dir of ['src', 'shared']) {
+    fs.cpSync(new URL(`../${dir}/`, import.meta.url), join(tempDir, dir), { recursive: true });
+  }
+  const outputs = ['app.js', 'styles.css', 'index.html'];
+  for (const file of outputs) fs.writeFileSync(join(tempDir, file), file);
+
+  const iconSource = join(tempDir, 'src', 'icons', 'svgRegistry.js');
+  const original = fs.readFileSync(iconSource, 'utf8');
+  for (const [prefix, error] of [
+    ["import { SVG_NS /* comment */ as ns } from './SvgIcon.js';", /svgRegistry\.js.*without aliases/],
+    ["import { SVG_NS } from './SvgIcon.js';", /svgRegistry\.js.*SvgIcon\.js.*earlier in jsOrder/],
+    ["import './missing.js';", /svgRegistry\.js.*missing\.js.*earlier in jsOrder/],
+    ['const SVG_NS = "duplicate";', /Identifier 'SVG_NS' has already been declared/],
+  ]) {
+    fs.writeFileSync(iconSource, `${prefix}\n${original}`);
+    assert.throws(() => buildBundle(tempDir), error);
+    for (const file of outputs) {
+      assert.equal(fs.readFileSync(join(tempDir, file), 'utf8'), file);
+    }
+  }
+});
+
 test('Compaction liveActivity: detects in-progress & completed CHECKPOINT over pre-compaction tool operations across RPC and transcript.jsonl', async () => {
   const convId = '4432b724-3e1e-4421-a375-c6855a7b7b37';
 
@@ -583,4 +760,209 @@ test('Compaction liveActivity: detects in-progress & completed CHECKPOINT over p
   const pTranscriptOnly = await h.buildTelemetryPayloadInternal(convId, true);
   assert.equal(pTranscriptOnly.activeConversation.liveActivity.phase, 'compacting');
   assert.equal(pTranscriptOnly.activeConversation.liveActivity.label, '上下文压缩');
+});
+
+test('panel typography scales all view/table/chart CSS rules via --fs-* tokens without hardcoded px sizes', () => {
+  const stylesDir = fileURLToPath(new URL('../src/styles', import.meta.url));
+  const viewCssFiles = [
+    'controls.css',
+    'views-overview.css',
+    'views-tables.css',
+    'views-consumption.css',
+    'views-settings.css',
+  ];
+  for (const file of viewCssFiles) {
+    const css = fs.readFileSync(join(stylesDir, file), 'utf8');
+    const rawFontLines = css
+      .split(/\r?\n/)
+      .filter((line) => /font-size\s*:/.test(line) && !/var\(--fs-/.test(line));
+    assert.deepEqual(
+      rawFontLines,
+      [],
+      `${file} must route every font-size declaration through scalable --fs-* tokens`
+    );
+  }
+  const tokensCss = fs.readFileSync(join(stylesDir, 'tokens.css'), 'utf8');
+  assert.match(tokensCss, /--font-sans\s*:[^;]+"SF Pro Text"/);
+  assert.match(tokensCss, /--font-mono\s*:\s*ui-monospace,\s*SFMono-Regular,\s*"SF Mono"/);
+  assert.match(tokensCss, /:host\(\[data-font-scale="xl"\]\)/);
+  assert.match(tokensCss, /\[data-font-scale\]\s*\{[\s\S]*?--fs-base-sm:/);
+  assert.doesNotMatch(tokensCss, /:root,\s*:host\s*\{[^}]*--ui-font-scale\s*:\s*1\s*;/);
+
+  const panelRoot = fileURLToPath(new URL('..', import.meta.url));
+  for (const artifact of ['styles.css', 'app.js', 'index.html']) {
+    const rawArtifact = fs.readFileSync(join(panelRoot, artifact), 'utf8');
+    assert.equal(rawArtifact.includes('\r\n'), false, `${artifact} must normalize line endings to LF`);
+  }
+});
+
+test('post-compaction context preserves static channels + checkpoint summary, capsule fits 100% without ellipsis, and .step-model-compact follows --accent-primary', async () => {
+  const convId = '99999999-8888-4777-8666-555555555555';
+  const preStep = {
+    type: 'CORTEX_STEP_TYPE_PLANNER_RESPONSE',
+    status: 'CORTEX_STEP_STATUS_DONE',
+    metadata: {
+      createdAt: '2026-11-18T03:00:00Z',
+      finishedGeneratingAt: '2026-11-18T03:00:05Z',
+      sourceTrajectoryStepInfo: { stepIndex: 10 },
+      modelUsage: {
+        model: 'MODEL_PLACEHOLDER_M429',
+        apiProvider: 'API_PROVIDER_GOOGLE_GEMINI',
+        inputTokens: '5400',
+        cacheReadTokens: '270000',
+        outputTokens: '1200',
+      },
+    },
+  };
+  const checkpointStep = {
+    type: 'CORTEX_STEP_TYPE_CHECKPOINT',
+    status: 'CORTEX_STEP_STATUS_DONE',
+    metadata: {
+      createdAt: '2026-11-18T03:01:00Z',
+      finishedGeneratingAt: '2026-11-18T03:01:06Z',
+      sourceTrajectoryStepInfo: { stepIndex: 12 },
+      modelUsage: {
+        apiProvider: 'API_PROVIDER_GOOGLE_GEMINI',
+        inputTokens: '5400',
+        cacheReadTokens: '270000',
+        outputTokens: '3800',
+        thinkingOutputTokens: '800',
+        responseOutputTokens: '3000',
+      },
+    },
+  };
+  const preGeneratorMetadata = [
+    {
+      stepIndices: [10],
+      chatModel: {
+        responseModel: 'gemini-4-carbon-high',
+        modelDisplayName: 'Gemini 4 Carbon (High)',
+        chatStartMetadata: {
+          contextWindowMetadata: {
+            estimatedTokensUsed: 275_400,
+            maxContextTokens: 384_000,
+            tokenBreakdown: {
+              groups: [
+                {
+                  type: 'TOKEN_TYPE_SYSTEM_PROMPT',
+                  numTokens: 16_000,
+                  children: [
+                    { name: 'identity', numTokens: 10_000 },
+                    { name: 'skills', numTokens: 4_000 },
+                    { name: 'user_rules', numTokens: 2_000 },
+                  ],
+                },
+                {
+                  type: 'TOKEN_TYPE_TOOLS',
+                  numTokens: 10_000,
+                  children: [
+                    { name: 'run_command', numTokens: 8_000 },
+                    { name: 'mcp_gradio_predict', numTokens: 2_000 },
+                  ],
+                },
+                {
+                  type: 'TOKEN_TYPE_CHAT_MESSAGES',
+                  numTokens: 249_400,
+                  children: [
+                    { name: '1: USER_INPUT', numTokens: 49_400 },
+                    { name: '2: PLANNER_RESPONSE', numTokens: 80_000 },
+                    { name: '3: GENERIC', numTokens: 120_000 },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const h = backendHarness({
+    clock: () => Date.parse('2026-11-18T03:02:00Z'),
+    summaries: {
+      [convId]: {
+        summary: 'Compaction test',
+        stepCount: 2,
+        status: 'CASCADE_RUN_STATUS_IDLE',
+        lastModifiedTime: '2026-11-18T03:01:06Z',
+      },
+    },
+    trajectories: {
+      [convId]: {
+        numTotalSteps: 2,
+        trajectory: {
+          steps: [preStep, checkpointStep],
+          generatorMetadata: preGeneratorMetadata,
+        },
+      },
+    },
+  });
+
+  const payload = await h.buildTelemetryPayloadInternal(convId);
+  const ctx = payload.activeConversation.context;
+
+  // Static channels must survive compaction while old chat history resets and checkpoint summary is recorded
+  assert.equal(ctx.systemPromptTokens, 10_000);
+  assert.equal(ctx.skillsTokens, 4_000);
+  assert.equal(ctx.userRulesTokens, 2_000);
+  assert.equal(ctx.systemToolsTokens, 8_000);
+  assert.equal(ctx.mcpToolsTokens, 2_000);
+  assert.equal(ctx.checkpointTokens, 3_000, 'checkpoint summary uses responseTokens excluding thinkingTokens');
+  assert.equal(ctx.userInputTokens, 0);
+  assert.equal(ctx.assistantTokens, 0);
+  assert.equal(ctx.toolResultsTokens, 0);
+  assert.equal(ctx.subagentTokens, 0);
+  assert.equal(ctx.totalTokens, 29_000, 'must not leak 275.4k pre-compaction input into post-compaction total');
+  assert.equal(ctx.compactionLimitTokens, 384_000, 'inherits 384k custom context budget across compaction step');
+  assert.equal(ctx.usedPct, 7.6);
+  assert.equal(payload.conversations[0].contextUsedPct, 7.6, 'Multi-Session quick stats must also reflect post-compaction %');
+
+  // Subsequent lightweight step without its own tokenBreakdown rolls forward cleanly on top of compacted baseline
+  h.state.summaries[convId].stepCount = 3;
+  h.state.summaries[convId].lastModifiedTime = '2026-11-18T03:02:10Z';
+  h.state.trajectories[convId] = {
+    numTotalSteps: 3,
+    trajectory: {
+      steps: [
+        preStep,
+        checkpointStep,
+        {
+          type: 'CORTEX_STEP_TYPE_PLANNER_RESPONSE',
+          status: 'CORTEX_STEP_STATUS_DONE',
+          metadata: {
+            createdAt: '2026-11-18T03:02:05Z',
+            finishedGeneratingAt: '2026-11-18T03:02:10Z',
+            sourceTrajectoryStepInfo: { stepIndex: 14 },
+            modelUsage: {
+              model: 'MODEL_PLACEHOLDER_M429',
+              apiProvider: 'API_PROVIDER_GOOGLE_GEMINI',
+              inputTokens: '1500',
+              cacheReadTokens: '29000',
+              outputTokens: '600',
+            },
+          },
+        },
+      ],
+      generatorMetadata: preGeneratorMetadata,
+    },
+  };
+  const payloadFollowup = await h.buildTelemetryPayloadInternal(convId, true);
+  const ctx2 = payloadFollowup.activeConversation.context;
+  assert.equal(ctx2.systemPromptTokens, 10_000);
+  assert.equal(ctx2.checkpointTokens, 3_000);
+  assert.equal(ctx2.userInputTokens, 1_500);
+  assert.equal(ctx2.assistantTokens, 600);
+  assert.equal(ctx2.totalTokens, 31_100);
+
+  // Verify capsule 100% slot CSS, non-hardcoded compaction suffix color, and narrow-width top pill nav containment
+  const stylesCss = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.match(stylesCss, /\.wm-ctx-seg\s*\{[^}]*width:\s*58px;/);
+  assert.match(stylesCss, /\.wm-ctx-pct\s*\{[^}]*max-width:\s*none;[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;/s);
+  assert.match(stylesCss, /\.step-model-compact\s*\{[^}]*color:\s*var\(--accent-primary\);/);
+  assert.doesNotMatch(stylesCss, /\.step-model-compact\s*\{[^}]*--metric-info/);
+  assert.match(stylesCss, /\.long-pill-nav\s*\{[^}]*container-type:\s*inline-size;[^}]*minmax\(0,\s*1fr\)[^}]*overflow:\s*hidden;/s);
+  assert.match(stylesCss, /\.pill-tab\s*\{[^}]*min-width:\s*0;/s);
+  assert.match(stylesCss, /@container\s*\(max-width:\s*30em\)\s*\{[\s\S]*?\.pill-tab-badge\s*\{\s*display:\s*none\s*!important;/);
+  assert.doesNotMatch(stylesCss, /\.structure-preview-canvas[^{]*\{[^}]*zoom:/, 'Structure preview must stay 1:1 without zoom distortion');
+  assert.match(stylesCss, /\.preview-capsule-bar\s*\{[^}]*"Google Sans Flex"/s);
 });

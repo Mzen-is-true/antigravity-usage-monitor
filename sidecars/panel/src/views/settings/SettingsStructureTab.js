@@ -449,7 +449,7 @@ export const SettingsStructureTab = defineComponent({
       isVisibleFn: () => isStructureVisible() && activeThirdTab === 'hover',
       initialModuleKeys: [],
     });
-    const hoverPreviewCanvas = h('div', { className: 'structure-preview-canvas is-scaled' }, [
+    const hoverPreviewCanvas = h('div', { className: 'structure-preview-canvas' }, [
       hoverPreviewTipEl,
       hoverPreviewEmptyEl,
     ]);
@@ -541,7 +541,7 @@ export const SettingsStructureTab = defineComponent({
       isVisibleFn: () => isStructureVisible() && activeThirdTab === 'overview',
       initialModuleKeys: [],
     });
-    const overviewPreviewCanvas = h('div', { className: 'structure-preview-canvas is-scaled' }, [
+    const overviewPreviewCanvas = h('div', { className: 'structure-preview-canvas' }, [
       overviewPreviewContainerEl,
     ]);
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { normalizeClientWindowMountMode } from '../src/store/telemetryStore.js';
 import { backendHarness } from './backend-harness.mjs';
 
 const FLASH = 'MODEL_PLACEHOLDER_M318';
@@ -290,7 +291,7 @@ test('telemetryStore isEquivalentTelemetry detects quota changes in non-active p
     source.indexOf('function isEquivalentTelemetry'),
     source.indexOf('export async function fetchTelemetry')
   );
-  const ctx = {};
+  const ctx = { normalizeClientWindowMountMode };
   vm.runInNewContext(fn + '\nglobalThis.compare=isEquivalentTelemetry;', ctx);
 
   const a = {

@@ -10,6 +10,7 @@ import { i18nStore, t } from '../../i18n/index.js';
 import { createSvgIcon, patchSvgIcon } from '../../icons/SvgIcon.js';
 import {
   fetchTelemetry,
+  formatAgentBadgeText,
   normalizeClientUpdateMode,
   telemetryStore,
   triggerPluginUpdate,
@@ -240,7 +241,7 @@ export const TopSessionHeader = defineComponent({
       } else if (isRunning) {
         const runningAgent = (telemetry?.activeConversation?.agents || []).find((a) => a.isRunning);
         const runSuffix =
-          hasSubagents && runningAgent ? ` · ${runningAgent.badgeText || runningAgent.shortLabel}` : '';
+          hasSubagents && runningAgent ? ` · ${formatAgentBadgeText(runningAgent)}` : '';
         patchSvgIcon(statusIcon, 'bolt');
         patchText(statusText, t('header.statusGenerating', { suffix: runSuffix }));
         patchClasses(statusTag, {

@@ -117,13 +117,15 @@
 /* --- 2. 顶部药丸导航栏 (Top Long-Pill Navigation Bar) --- */
 .long-pill-nav {
   position: relative;
+  container-type: inline-size;
   display: grid;
-  grid-template-columns: repeat(var(--pill-count, 4), 1fr);
+  grid-template-columns: repeat(var(--pill-count, 4), minmax(0, 1fr));
   align-items: center;
   padding: 3px;
   background: var(--surface-panel);
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-pill);
+  overflow: hidden;
   user-select: none;
 }
 
@@ -149,15 +151,17 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 26px;
-  padding: 0 var(--space-2);
+  min-width: 0;
+  min-height: calc(26px * var(--ui-font-scale, 1));
+  padding: 2px var(--space-2);
   border: none;
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--fs-base);
   font-weight: 500;
-  line-height: 1;
+  line-height: 1.15;
   border-radius: var(--radius-pill);
+  overflow: hidden;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--dur-instant) var(--ease-fast);
@@ -171,18 +175,58 @@
   flex-shrink: 0;
 }
 
-.pill-tab-label,
-.pill-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 14px;
-  line-height: 1;
+.pill-tab-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .pill-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 14px;
+  line-height: 1.15;
   margin-left: -2px;
   font-size: var(--fs-base-sm);
   opacity: 0.85;
+}
+
+@container (max-width: 30em) {
+  .pill-tab {
+    gap: 3.5px;
+    padding: 2px 4px;
+    font-size: var(--fs-md);
+  }
+  .pill-tab .svg-icon {
+    width: 13px;
+    height: 13px;
+  }
+  .pill-tab-badge {
+    display: none !important;
+  }
+}
+
+@container (max-width: 23em) {
+  .pill-tab {
+    gap: 0;
+    padding: 2px 3px;
+  }
+  .pill-tab .svg-icon {
+    display: none;
+  }
+}
+
+@container (max-width: 17.5em) {
+  .pill-tab .svg-icon {
+    display: block;
+  }
+  .pill-tab-label {
+    display: none;
+  }
 }
 
 .pill-tab:hover {
@@ -223,8 +267,8 @@
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  height: 24px;
-  padding: 0 6px;
+  min-height: calc(24px * var(--ui-font-scale, 1));
+  padding: 2px 6px;
   background: transparent;
   color: var(--text-primary);
   border: none;
@@ -350,7 +394,7 @@
 .number-input {
   display: inline-flex;
   align-items: stretch;
-  height: 28px;
+  min-height: calc(28px * var(--ui-font-scale, 1));
   background: var(--surface-panel);
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-xs);
@@ -410,8 +454,8 @@
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  height: 26px;
-  padding: 0 var(--space-2);
+  min-height: calc(26px * var(--ui-font-scale, 1));
+  padding: 2px var(--space-2);
   background: var(--surface-panel);
   color: var(--text-primary);
   border: 1px solid var(--border-hairline);
@@ -464,7 +508,7 @@
 }
 
 .dt-day {
-  height: 22px;
+  min-height: calc(22px * var(--ui-font-scale, 1));
   border: none;
   background: transparent;
   color: var(--text-primary);
@@ -540,8 +584,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 7px;
+  min-height: calc(22px * var(--ui-font-scale, 1));
+  padding: 2px 7px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -650,8 +694,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 var(--space-5);
+  min-height: calc(28px * var(--ui-font-scale, 1));
+  padding: 3px var(--space-5);
   background: var(--accent-primary);
   color: var(--text-inverse);
   border: 1px solid var(--accent-primary);
@@ -675,8 +719,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 var(--space-4);
+  min-height: calc(28px * var(--ui-font-scale, 1));
+  padding: 3px var(--space-4);
   background: var(--surface-panel);
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
@@ -714,8 +758,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 7px;
+  min-height: calc(22px * var(--ui-font-scale, 1));
+  padding: 2px 7px;
   font-size: var(--fs-md);
   font-weight: 600;
   border-radius: var(--radius-xs);
@@ -744,18 +788,12 @@
   min-height: 26px;
 }
 
-.topbar-header-right {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .btn-ghost-sm {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
-  padding: 0 6px;
+  min-height: calc(20px * var(--ui-font-scale, 1));
+  padding: 1px 6px;
   font-size: var(--fs-md);
   font-weight: 500;
   color: var(--text-secondary);
@@ -781,40 +819,13 @@
   cursor: default;
 }
 
-.topbar-slot-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.topbar-slot-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px 2px 6px;
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-xs);
-  background: transparent;
-  transition: border-color var(--dur-instant) var(--ease-fast);
-}
-
-.topbar-slot-row:focus-within,
-.topbar-slot-row:has(.is-open) {
-  z-index: 30;
-  border-color: var(--border-strong);
-}
-
-.topbar-slot-row .select-menu {
-  max-height: 216px;
-}
-
 .slot-index-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  min-width: calc(16px * var(--ui-font-scale, 1));
+  min-height: calc(16px * var(--ui-font-scale, 1));
+  padding: 0 3px;
   font-size: var(--fs-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

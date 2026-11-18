@@ -17,8 +17,15 @@ export const THEME_ACCENT_PRESETS = Object.freeze([
 export const FONT_SCALE_FACTORS = Object.freeze({
   sm: 0.92,
   md: 1,
-  lg: 1.08,
-  xl: 1.15,
+  lg: 1.14,
+  xl: 1.28,
+});
+
+export const PANEL_SCALE_FACTORS = Object.freeze({
+  sm: 1,
+  md: 1,
+  lg: 1.09,
+  xl: 1.18,
 });
 
 export function normalizeClientThemeAccent(raw) {
@@ -70,10 +77,13 @@ export function applyAppearanceToRoot(targetEl, settings, { includeFontScale = t
   if (includeFontScale) {
     const scaleKey = normalizeClientFontScale(settings?.fontScale);
     const factor = FONT_SCALE_FACTORS[scaleKey] ?? 1;
+    const panelFactor = PANEL_SCALE_FACTORS[scaleKey] ?? 1;
     setOrClearStyleVar(targetEl, '--ui-font-scale', factor === 1 ? '' : String(factor));
+    setOrClearStyleVar(targetEl, '--ui-panel-scale', panelFactor === 1 ? '' : String(panelFactor));
     targetEl.setAttribute?.('data-font-scale', scaleKey);
   } else {
     setOrClearStyleVar(targetEl, '--ui-font-scale', '');
+    setOrClearStyleVar(targetEl, '--ui-panel-scale', '');
     if (typeof targetEl.removeAttribute === 'function') {
       targetEl.removeAttribute('data-font-scale');
     }

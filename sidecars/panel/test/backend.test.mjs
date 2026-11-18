@@ -666,7 +666,7 @@ test('cached incomplete timing is refreshed once without invalidating completed 
     ...structuredClone(raw.trajectory.steps[0]),
     status: 'CORTEX_STEP_STATUS_CLEARED',
   };
-  const { extractModelSteps } = await import('../speed-metrics.mjs');
+  const { extractModelSteps } = await import('../trajectory-metrics.mjs');
   const [completed] = extractModelSteps(raw.trajectory.steps, raw.trajectory.generatorMetadata);
   const [incomplete] = extractModelSteps([{ ...incompleteStep, status: 'CORTEX_STEP_STATUS_GENERATING' }]);
   const cacheEntry = (step) => ({
@@ -743,6 +743,39 @@ test('display step revisions omit only matching rows and invalidate on timing ch
   assert.equal((await get()).activeConversation.recentSteps[0].tokPerSec, 60);
 });
 
+test('telemetry reuses display rows only for a matching revision', async (t) => {
+  const { fetchTelemetry, telemetryStore } = await import('../src/store/telemetryStore.js');
+  const previousTelemetry = telemetryStore.getState().telemetry;
+  t.after(() => telemetryStore.setState({ telemetry: previousTelemetry }));
+  const recentSteps = [{ stepIndex: 1, tokPerSec: 20 }];
+  const agentSteps = [{ stepIndex: 2, tokPerSec: 40 }];
+  let response = {
+    stepRevision: 'test-revision',
+    activeConversation: { recentSteps, agents: [{ recentSteps: agentSteps }] },
+  };
+  const revisions = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    revisions.push(new URL(url, 'http://localhost').searchParams.get('stepRevision'));
+    return { ok: true, json: async () => structuredClone(response) };
+  });
+
+  assert.equal((await fetchTelemetry()).stepRevision, 'test-revision');
+  response = {
+    stepsUnchanged: true,
+    stepRevision: 'test-revision',
+    activeConversation: { agents: [{}] },
+  };
+  const refreshed = await fetchTelemetry();
+  assert.equal(revisions[1], 'test-revision');
+  assert.deepEqual(refreshed.activeConversation.recentSteps, recentSteps);
+  assert.deepEqual(refreshed.activeConversation.agents[0].recentSteps, agentSteps);
+
+  const telemetryBeforeMismatch = telemetryStore.getState().telemetry;
+  response.stepRevision = 'unknown-revision';
+  assert.equal(await fetchTelemetry(), null);
+  assert.equal(telemetryStore.getState().telemetry, telemetryBeforeMismatch);
+});
+
 test('simultaneous ranges share the trajectory scan while keeping their own totals', async () => {
   const h = backendHarness({
     trajectories: { live: raw },
@@ -759,7 +792,7 @@ test('simultaneous ranges share the trajectory scan while keeping their own tota
 });
 
 test('cached usage follows rolling boundaries and reprices unchanged steps', async () => {
-  const { extractModelSteps } = await import('../speed-metrics.mjs');
+  const { extractModelSteps } = await import('../trajectory-metrics.mjs');
   const [step] = extractModelSteps(raw.trajectory.steps, raw.trajectory.generatorMetadata);
   const modelKey = 'test-metered-model';
   let now = Date.parse('2026-03-08T07:00:00Z');
@@ -806,7 +839,6 @@ test('cached usage follows rolling boundaries and reprices unchanged steps', asy
 test('modelBreakdown exposes avgTtftSec, cacheHitPct, and subagent scoped breakdowns + fit math helpers', async () => {
   const {
     computeLinearFit,
-    computeLoessFit,
     computePublicationFit,
     getStepModelGroupKey,
     toChronologicalSteps,
@@ -840,7 +872,11 @@ test('modelBreakdown exposes avgTtftSec, cacheHitPct, and subagent scoped breakd
 
   // Warmup cache curve stays clamped within [0, 100]
   const cacheSeries = [0, 90, 92, 93, 94, 95, 95];
-  const loessCache = computeLoessFit(cacheSeries, { minVal: 0, maxVal: 100 });
+  const loessCache = computePublicationFit(
+    cacheSeries.map((_, index) => index),
+    cacheSeries,
+    { minVal: 0, maxVal: 100 }
+  ).sampleFits;
   assert.equal(loessCache.length, cacheSeries.length);
   assert.ok(
     loessCache.every((v) => v >= 0 && v <= 100),
@@ -954,6 +990,67 @@ test('modelBreakdown exposes avgTtftSec, cacheHitPct, and subagent scoped breakd
 
   const aggMb = payload.activeConversation.aggregated.modelBreakdown;
   assert.equal(aggMb.length, 2);
+});
+
+test('saving preferences sends the same legacy values normalized by the backend', async (t) => {
+  const { saveSettingsPatch, stopAsyncTelemetryLoop, telemetryStore } =
+    await import('../src/store/telemetryStore.js');
+  const h = backendHarness({ settings: { themeAccent: 'blue' } });
+  let savedSettings = JSON.parse(JSON.stringify(h.loadSettings()));
+  const previousTelemetry = telemetryStore.getState().telemetry;
+  t.after(() => {
+    stopAsyncTelemetryLoop();
+    telemetryStore.setState({ telemetry: previousTelemetry });
+  });
+  telemetryStore.setState({ telemetry: { settings: savedSettings } });
+
+  const patches = [];
+  let failSave = false;
+  t.mock.method(globalThis, 'fetch', async (path, options) => {
+    if (options.method === 'POST') {
+      assert.equal(path, '/api/settings');
+      const patch = JSON.parse(options.body);
+      patches.push(patch);
+      for (const [key, value] of Object.entries(patch)) {
+        assert.deepEqual(telemetryStore.getState().telemetry.settings[key], value);
+      }
+      if (failSave) {
+        return { ok: false, json: async () => ({ error: 'Failed to persist settings' }) };
+      }
+      const result = h.executeSettingsAction(patch);
+      savedSettings = JSON.parse(result.body);
+      return { ok: result.ok, json: async () => savedSettings };
+    }
+    assert.match(path, /^\/api\/telemetry\?/);
+    return { ok: true, json: async () => ({ settings: savedSettings }) };
+  });
+
+  await saveSettingsPatch({
+    windowMountMode: 'sidebar_only',
+    topbarCapsuleSlots: ['step_cost', 'cost', 'none'],
+    overviewMetrics: ['cost', 'tps'],
+    weeklyLimitMode: 'tokens',
+  });
+  assert.deepEqual(patches[0], {
+    windowMountMode: 'sidebar',
+    enableWindowOverlay: false,
+    topbarCapsuleSlots: ['cost'],
+    overviewMetrics: ['step_cost', 'tps'],
+    weeklyLimitMode: 'custom_tokens',
+  });
+  assert.deepEqual(telemetryStore.getState().telemetry.settings, savedSettings);
+  assert.equal(savedSettings.themeAccent, 'blue');
+
+  await saveSettingsPatch({ topbarCapsuleSlots: [], weeklyLimitMode: 'cost' });
+  assert.deepEqual(patches[1], {
+    topbarCapsuleSlots: ['context'],
+    weeklyLimitMode: 'custom_cost',
+  });
+
+  const telemetryBeforeFailure = telemetryStore.getState().telemetry;
+  failSave = true;
+  await assert.rejects(saveSettingsPatch({ windowMountMode: 'composer' }), /Failed to persist/);
+  assert.equal(telemetryStore.getState().telemetry, telemetryBeforeFailure);
 });
 
 test('preferences schema defaults match pre-refactor UI, migrate legacy none slots, and support reset & cache rebuild', async () => {

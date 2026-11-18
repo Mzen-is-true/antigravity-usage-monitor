@@ -8,6 +8,7 @@
  *    绝不借用其他模型单价伪造费用。
  */
 
+import { parseIsoMs } from '../trajectory-metrics.mjs';
 import { MODEL_PRICING, PLACEHOLDER_MAP } from './pricing-catalog.mjs';
 
 /**
@@ -130,7 +131,7 @@ export function formatGenericModelSlug(slug = '') {
     .trim()
     .replace(/^session-display:/i, '');
   if (!s || /^MODEL_PLACEHOLDER_/i.test(s)) return '';
-  if (/^gemini-4-argon-(?:f|disabled)$/i.test(s)) return 'Gemini 4 Argon';
+  if (/^gemini-4-argon-(?:b|f|trial|disabled)$/i.test(s)) return 'Gemini 4 Argon';
   if (/^gemini-3\.8-flash-n$/i.test(s)) return 'Gemini 3.8 Flash';
   if (/^gemini-3\.7-flash-safety-le$/i.test(s)) return 'Gemini 3.7 Flash';
   if (/^gemini-3-flash-(?:[abd]|agent)$/i.test(s)) return 'Gemini 3.5 Flash';
@@ -159,16 +160,78 @@ export function formatGenericModelSlug(slug = '') {
   return '';
 }
 
+function extractStepTimestampMs(step) {
+  if (!step || typeof step !== 'object') return 0;
+  const direct = Number(step.createdAtMs);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  if (typeof step.createdAt === 'string' && step.createdAt.trim()) {
+    return parseIsoMs(step.createdAt.trim()) || 0;
+  }
+  return 0;
+}
+
 /**
- * 综合动态模型目录、占位符字典与价格表，解析步骤对应的模型元数据与单价配置。
+ * 根据目标时间戳匹配模型价格条目的时间阶段（`phases`，左闭右开 `[fromMs, untilMs)`）。
+ * 未传入有效时间戳时按当前时刻匹配；未命中任何阶段或未配置阶段时回退至顶层基础单价。
  *
- * @param {string} rawModelKey 步骤记录的原始模型键（如 `MODEL_PLACEHOLDER_M320`）
- * @param {Map<string, {modelId: string, label: string, quotaInfo?: object}>} [dynamicModelMap=new Map()] 从 `GetUserStatus` 提取的动态模型表
- * @param {string} [apiProvider=''] API 提供商枚举
- * @param {string} [modelDisplayName=''] 已知的模型展示名称
- * @param {string} [responseModel=''] 实际响应的上游模型 ID（如 `gemini-3.8-flash-n`）
+ * @param {object|null} pricingEntry
+ * @param {number|string|null} [atMs]
+ * @returns {object|null}
  */
-export function resolveModelInfo(
+export function resolvePricingAt(pricingEntry, atMs) {
+  if (!pricingEntry || typeof pricingEntry !== 'object') return null;
+  const baseEntry = pricingEntry._basePricing || pricingEntry;
+  const phases = baseEntry.phases;
+  if (!Array.isArray(phases) || phases.length === 0) return baseEntry;
+
+  let tMs = 0;
+  if (typeof atMs === 'number' && Number.isFinite(atMs) && atMs > 0) {
+    tMs = atMs;
+  } else if (typeof atMs === 'string' && atMs.trim()) {
+    tMs = parseIsoMs(atMs.trim()) || 0;
+  }
+  if (tMs <= 0) {
+    tMs = Date.now();
+  }
+
+  for (let i = 0; i < phases.length; i++) {
+    const ph = phases[i];
+    if (!ph || typeof ph !== 'object') continue;
+    const fromMs = Number.isFinite(ph.fromMs)
+      ? ph.fromMs
+      : typeof ph.from === 'string' && ph.from.trim()
+        ? parseIsoMs(ph.from.trim()) || -Infinity
+        : -Infinity;
+    const untilMs = Number.isFinite(ph.untilMs)
+      ? ph.untilMs
+      : typeof ph.until === 'string' && ph.until.trim()
+        ? parseIsoMs(ph.until.trim()) || Infinity
+        : Infinity;
+    if (tMs >= fromMs && tMs < untilMs) {
+      if (
+        ph.input === baseEntry.input &&
+        ph.cache === baseEntry.cache &&
+        ph.output === baseEntry.output
+      ) {
+        return baseEntry;
+      }
+      const resolved = {
+        ...baseEntry,
+        input: ph.input,
+        cache: ph.cache,
+        output: ph.output,
+      };
+      Object.defineProperty(resolved, '_basePricing', {
+        value: baseEntry,
+        enumerable: false,
+      });
+      return resolved;
+    }
+  }
+  return baseEntry;
+}
+
+function resolveModelCatalogEntry(
   rawModelKey,
   dynamicModelMap = new Map(),
   apiProvider = '',
@@ -251,42 +314,86 @@ export function resolveModelInfo(
 
   if (explicitPricing) {
     return {
-      rawModel: rawModelKey,
-      modelId,
-      label: derivedDisplay,
-      baseLabel,
-      shortName: explicitPricing.short,
-      family: explicitPricing.family,
-      pricing: explicitPricing,
-      isEstimatedPrice: false,
+      catalogPricing: explicitPricing,
+      info: {
+        rawModel: rawModelKey,
+        modelId,
+        label: derivedDisplay,
+        baseLabel,
+        shortName: explicitPricing.short,
+        family: explicitPricing.family,
+        pricing: explicitPricing,
+        isEstimatedPrice: false,
+      },
     };
   }
 
   const inferredFamily = inferFamilyFromProviderOrKey(rawModelKey, modelId, apiProvider);
   return {
-    rawModel: rawModelKey,
-    modelId,
-    label: derivedDisplay,
-    baseLabel,
-    shortName: derivedDisplay,
-    family: inferredFamily,
-    pricing: null,
-    isEstimatedPrice: true,
+    catalogPricing: null,
+    info: {
+      rawModel: rawModelKey,
+      modelId,
+      label: derivedDisplay,
+      baseLabel,
+      shortName: derivedDisplay,
+      family: inferredFamily,
+      pricing: null,
+      isEstimatedPrice: true,
+    },
   };
 }
 
-/** 在单次遥测请求内复用同一模型身份与价格的解析结果。 */
+/**
+ * 综合动态模型目录、占位符字典与价格表，解析步骤对应的模型元数据与指定时刻的单价配置。
+ *
+ * @param {string} rawModelKey 步骤记录的原始模型键（如 `MODEL_PLACEHOLDER_M320`）
+ * @param {Map<string, {modelId: string, label: string, quotaInfo?: object}>} [dynamicModelMap=new Map()] 从 `GetUserStatus` 提取的动态模型表
+ * @param {string} [apiProvider=''] API 提供商枚举
+ * @param {string} [modelDisplayName=''] 已知的模型展示名称
+ * @param {string} [responseModel=''] 实际响应的上游模型 ID（如 `gemini-3.8-flash-n`）
+ * @param {number|string|null} [atMs=0] 步骤发生时间戳（缺省按当前时刻匹配阶段价格）
+ */
+export function resolveModelInfo(
+  rawModelKey,
+  dynamicModelMap = new Map(),
+  apiProvider = '',
+  modelDisplayName = '',
+  responseModel = '',
+  atMs = 0
+) {
+  const { catalogPricing, info } = resolveModelCatalogEntry(
+    rawModelKey,
+    dynamicModelMap,
+    apiProvider,
+    modelDisplayName,
+    responseModel
+  );
+  if (!catalogPricing) return info;
+  const effectivePricing = resolvePricingAt(catalogPricing, atMs);
+  return effectivePricing === catalogPricing ? info : { ...info, pricing: effectivePricing };
+}
+
+/** 在单次遥测请求内按模型身份与价格阶段复用解析结果。 */
 export function createStepModelResolver(dynamicModelMap) {
   const models = new Map();
   return (step) => {
-    const { modelKey, apiProvider = '', modelDisplayName = '', responseModel = '' } = step;
+    const stepMs = extractStepTimestampMs(step);
+    const { modelKey, apiProvider = '', modelDisplayName = '', responseModel = '' } = step || {};
     if (
       typeof modelKey !== 'string' ||
       typeof apiProvider !== 'string' ||
       typeof modelDisplayName !== 'string' ||
       typeof responseModel !== 'string'
     ) {
-      return resolveModelInfo(modelKey, dynamicModelMap, apiProvider, modelDisplayName, responseModel);
+      return resolveModelInfo(
+        modelKey,
+        dynamicModelMap,
+        apiProvider,
+        modelDisplayName,
+        responseModel,
+        stepMs
+      );
     }
     let providers = models.get(modelKey);
     if (!providers) models.set(modelKey, (providers = new Map()));
@@ -294,12 +401,50 @@ export function createStepModelResolver(dynamicModelMap) {
     if (!names) providers.set(apiProvider, (names = new Map()));
     let responses = names.get(modelDisplayName);
     if (!responses) names.set(modelDisplayName, (responses = new Map()));
-    let info = responses.get(responseModel);
-    if (!info) {
-      info = resolveModelInfo(modelKey, dynamicModelMap, apiProvider, modelDisplayName, responseModel);
-      responses.set(responseModel, info);
+    let cached = responses.get(responseModel);
+    if (!cached) {
+      const { catalogPricing, info } = resolveModelCatalogEntry(
+        modelKey,
+        dynamicModelMap,
+        apiProvider,
+        modelDisplayName,
+        responseModel
+      );
+      cached = {
+        catalogPricing,
+        baseInfo: info,
+        byPhaseIdx: catalogPricing?.phases?.length ? new Map() : null,
+      };
+      responses.set(responseModel, cached);
     }
-    return info;
+    if (!cached.byPhaseIdx) {
+      return cached.baseInfo;
+    }
+    const tMs = stepMs > 0 ? stepMs : Date.now();
+    const phases = cached.catalogPricing.phases;
+    let phaseIdx = -1;
+    for (let i = 0; i < phases.length; i++) {
+      const ph = phases[i];
+      const fromMs = Number.isFinite(ph.fromMs) ? ph.fromMs : -Infinity;
+      const untilMs = Number.isFinite(ph.untilMs) ? ph.untilMs : Infinity;
+      if (tMs >= fromMs && tMs < untilMs) {
+        phaseIdx = i;
+        break;
+      }
+    }
+    let phasedInfo = cached.byPhaseIdx.get(phaseIdx);
+    if (!phasedInfo) {
+      const effectivePricing =
+        phaseIdx >= 0
+          ? resolvePricingAt(cached.catalogPricing, tMs)
+          : cached.catalogPricing;
+      phasedInfo =
+        effectivePricing === cached.catalogPricing
+          ? cached.baseInfo
+          : { ...cached.baseInfo, pricing: effectivePricing };
+      cached.byPhaseIdx.set(phaseIdx, phasedInfo);
+    }
+    return phasedInfo;
   };
 }
 
@@ -343,12 +488,17 @@ export function formatUpstreamModelId(rawUpstream = '', mInfo = null) {
  */
 export function computeStepCost(step, pricing) {
   if (!pricing) return null;
+  const stepMs = extractStepTimestampMs(step);
+  const effectivePricing =
+    stepMs > 0 && Array.isArray(pricing.phases) && pricing.phases.length > 0
+      ? resolvePricingAt(pricing, stepMs)
+      : pricing;
   const safeTok = (v) => {
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? n : 0;
   };
-  const inCost = (safeTok(step?.inputTokens) / 1_000_000) * pricing.input;
-  const cacheCost = (safeTok(step?.cacheReadTokens) / 1_000_000) * pricing.cache;
-  const outCost = (safeTok(step?.outputTokens) / 1_000_000) * pricing.output;
+  const inCost = (safeTok(step?.inputTokens) / 1_000_000) * effectivePricing.input;
+  const cacheCost = (safeTok(step?.cacheReadTokens) / 1_000_000) * effectivePricing.cache;
+  const outCost = (safeTok(step?.outputTokens) / 1_000_000) * effectivePricing.output;
   return inCost + cacheCost + outCost;
 }

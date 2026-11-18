@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {extractContextBreakdown, extractLiveActivity, extractModelSteps, normalizeCachedStep, speedMetric, summarizeSpeed, summarizeTtft} from '../speed-metrics.mjs';
+import {extractContextBreakdown, extractLiveActivity, extractModelSteps, normalizeCachedStep, speedMetric, summarizeSpeed, summarizeTtft} from '../trajectory-metrics.mjs';
 
 function sample({total=12,ttft='2s',stream='10s',output=1100,thinking=100,response=1000,
   thinkingDuration='4s',tools=false,text=true,status='CORTEX_STEP_STATUS_DONE'}={}) {

@@ -16,14 +16,17 @@ async function bootstrapApp(mountTarget = document.getElementById('app-root')) {
   const appInstance = App();
   mountTarget.appendChild(appInstance.el);
 
+  const syncDocAppearance = (settings) => {
+    setI18nLanguage(settings?.language);
+    if (typeof document !== 'undefined' && document.documentElement) {
+      applyAppearanceToRoot(document.documentElement, settings, { includeFontScale: true });
+    }
+  };
+  syncDocAppearance(telemetryStore.getState().telemetry?.settings);
+
   const unsubAppearance = telemetryStore.subscribe(
     (st) => st.telemetry?.settings,
-    (settings) => {
-      setI18nLanguage(settings?.language);
-      if (typeof document !== 'undefined' && document.documentElement) {
-        applyAppearanceToRoot(document.documentElement, settings, { includeFontScale: true });
-      }
-    }
+    syncDocAppearance
   );
 
   const stopPolling = startAsyncTelemetryLoop(2000);

@@ -7,6 +7,17 @@ import { createReactiveStore } from '../core/reactive.js';
 import { callSidecarApi, getWindowBridgeConfig, isWindowOverlayMode } from '../core/httpClient.js';
 import { isEnglishLocale, normalizeI18nLanguage, t } from '../i18n/index.js';
 import { normalizeClientFontScale, normalizeClientThemeAccent } from '../core/appearance.js';
+import {
+  DEFAULT_OVERVIEW_METRICS,
+  DEFAULT_TOPBAR_SLOTS,
+  OVERVIEW_METRIC_KEYS,
+  TOPBAR_SLOT_KEYS,
+  normalizeOverviewMetrics,
+  normalizeTopbarCapsuleSlots,
+  normalizeWeeklyLimitMode,
+  normalizeWindowMountMode,
+} from '../../shared/settings-normalization.mjs';
+import { WINDOW_BRIDGE_ROUTE_KEY, readInjectedWindowBridge } from '../../shared/window-bridge-protocol.mjs';
 
 const CASCADE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,7 +36,7 @@ export function extractHostRouteCascadeId() {
   if (m && CASCADE_UUID_RE.test(m[1])) {
     return m[1];
   }
-  const extBridgeRouteId = String(window.__AGUsageMonitorBridge?.hostRouteCascadeId || '').trim();
+  const extBridgeRouteId = String(readInjectedWindowBridge()?.[WINDOW_BRIDGE_ROUTE_KEY] || '').trim();
   if (extBridgeRouteId && CASCADE_UUID_RE.test(extBridgeRouteId)) {
     return extBridgeRouteId;
   }
@@ -107,23 +118,9 @@ let loopActive = false;
 let loopIntervalMs = 2000;
 let loopTickFn = null;
 
-export const CLIENT_TOPBAR_SLOT_KEYS = Object.freeze([
-  'context',
-  'tps',
-  'ttft',
-  'avg_tps',
-  'cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'quota_auto',
-  'gemini_5h',
-  'gemini_weekly',
-  'claude_5h',
-  'claude_weekly',
-]);
+export const CLIENT_TOPBAR_SLOT_KEYS = TOPBAR_SLOT_KEYS;
 
-export const DEFAULT_CLIENT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
+export const DEFAULT_CLIENT_TOPBAR_SLOTS = DEFAULT_TOPBAR_SLOTS;
 
 export const CLIENT_OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
@@ -143,24 +140,9 @@ export const DEFAULT_CLIENT_OVERVIEW_MODULES = Object.freeze([
 
 export const DEFAULT_CLIENT_HOVER_MODULES = Object.freeze(['metrics', 'context', 'quotas']);
 
-export const CLIENT_OVERVIEW_METRIC_KEYS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'context_usage',
-  'quota_tightest',
-]);
+export const CLIENT_OVERVIEW_METRIC_KEYS = OVERVIEW_METRIC_KEYS;
 
-export const DEFAULT_CLIENT_OVERVIEW_METRICS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-]);
+export const DEFAULT_CLIENT_OVERVIEW_METRICS = DEFAULT_OVERVIEW_METRICS;
 
 export const CLIENT_STEP_COLUMN_KEYS = Object.freeze([
   'step',
@@ -310,12 +292,7 @@ function normalizeClientOrderedList(raw, { allowedKeys, defaultItems, minLen, ma
  * @returns {string[]}
  */
 export function normalizeClientTopbarSlots(raw) {
-  return normalizeClientOrderedList(raw, {
-    allowedKeys: CLIENT_TOPBAR_SLOT_KEYS,
-    defaultItems: DEFAULT_CLIENT_TOPBAR_SLOTS,
-    minLen: 1,
-    maxLen: 5,
-  });
+  return normalizeTopbarCapsuleSlots(raw);
 }
 
 /**
@@ -355,12 +332,7 @@ export function normalizeClientOverviewModules(raw) {
  * @returns {string[]}
  */
 export function normalizeClientOverviewMetrics(raw) {
-  return normalizeClientOrderedList(raw, {
-    allowedKeys: CLIENT_OVERVIEW_METRIC_KEYS,
-    defaultItems: DEFAULT_CLIENT_OVERVIEW_METRICS,
-    minLen: 1,
-    maxLen: 4,
-  });
+  return normalizeOverviewMetrics(raw);
 }
 
 /**
@@ -404,12 +376,7 @@ export function normalizeClientOrchestratorIdMode(mode) {
  * @returns {'dual'|'composer'|'sidebar'}
  */
 export function normalizeClientWindowMountMode(mode, legacyEnableOverlay) {
-  const m = String(mode ?? '').trim().toLowerCase();
-  if (m === 'composer' || m === 'input') return 'composer';
-  if (m === 'sidebar' || m === 'off') return 'sidebar';
-  if (m === 'dual' || m === 'topbar') return 'dual';
-  if (legacyEnableOverlay === false) return 'sidebar';
-  return 'dual';
+  return normalizeWindowMountMode(mode, legacyEnableOverlay);
 }
 
 function isEquivalentTelemetry(prev, next) {
@@ -425,15 +392,6 @@ function isEquivalentTelemetry(prev, next) {
     }
     return true;
   };
-  const normMount = (mode, legacyEnableOverlay) => {
-    const m = String(mode ?? '').trim().toLowerCase();
-    if (m === 'composer' || m === 'input') return 'composer';
-    if (m === 'sidebar' || m === 'off') return 'sidebar';
-    if (m === 'dual' || m === 'topbar') return 'dual';
-    if (legacyEnableOverlay === false) return 'sidebar';
-    return 'dual';
-  };
-
   // 1. 比对系统设置项（外观语言/主题/字号、模型显示策略、更新策略、挂载与结构布局配置）
   const pAct = prev.activeConversation;
   const nAct = next.activeConversation;
@@ -443,6 +401,7 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.language ?? 'zh-CN') !== (nSet?.language ?? 'zh-CN')) return false;
   if ((pSet?.themeAccent ?? 'host') !== (nSet?.themeAccent ?? 'host')) return false;
   if ((pSet?.fontScale ?? 'md') !== (nSet?.fontScale ?? 'md')) return false;
+  if ((prev.hostPlatform || '') !== (next.hostPlatform || '')) return false;
   if (Boolean(pSet?.contextWindowRiskAccepted) !== Boolean(nSet?.contextWindowRiskAccepted)) {
     return false;
   }
@@ -505,8 +464,8 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.pluginUpdateMode ?? '') !== (nSet?.pluginUpdateMode ?? '')) return false;
   if (pSet?.autoUpdatePlugin !== nSet?.autoUpdatePlugin) return false;
   if (
-    normMount(pSet?.windowMountMode, pSet?.enableWindowOverlay) !==
-    normMount(nSet?.windowMountMode, nSet?.enableWindowOverlay)
+    normalizeClientWindowMountMode(pSet?.windowMountMode, pSet?.enableWindowOverlay) !==
+    normalizeClientWindowMountMode(nSet?.windowMountMode, nSet?.enableWindowOverlay)
   ) {
     return false;
   }
@@ -1112,12 +1071,6 @@ async function requestTelemetry(params, force) {
     consecutivePollFailures = 0;
 
     const latestSt = telemetryStore.getState();
-    const previousAccount = latestSt.telemetry?.account;
-    const nextAccount = payload?.account;
-    const accountChanged = previousAccount?.status === 'signedIn' &&
-      (nextAccount?.status === 'signedOut' || (nextAccount?.status === 'signedIn' &&
-        (previousAccount.email || previousAccount.name) !== (nextAccount.email || nextAccount.name)));
-    const accountPatch = accountChanged ? { selectedConversationId: '' } : {};
     if (force) {
       const elapsed = Date.now() - startMs;
       if (elapsed < 220) {
@@ -1128,7 +1081,6 @@ async function requestTelemetry(params, force) {
       }
       if (feedbackTimer) clearTimeout(feedbackTimer);
       telemetryStore.setState({
-        ...accountPatch,
         telemetry: payload,
         minuteTick: Math.floor(Date.now() / 30000),
         syncState: 'synced',
@@ -1141,7 +1093,6 @@ async function requestTelemetry(params, force) {
       const isSame = isEquivalentTelemetry(latestSt.telemetry, payload);
       const nextTelemetry = isSame ? latestSt.telemetry : payload;
       telemetryStore.setState({
-        ...accountPatch,
         telemetry: nextTelemetry,
         minuteTick: Math.floor(Date.now() / 30000),
         syncState: latestSt.syncState === 'synced' ? 'synced' : 'idle',
@@ -1177,9 +1128,7 @@ export async function saveSettingsPatch(patch) {
     safePatch.fontScale = normalizeClientFontScale(safePatch.fontScale);
   }
   if (Object.prototype.hasOwnProperty.call(safePatch, 'weeklyLimitMode')) {
-    const mode = safePatch.weeklyLimitMode;
-    safePatch.weeklyLimitMode =
-      mode === 'custom_tokens' || mode === 'custom_cost' ? mode : 'official';
+    safePatch.weeklyLimitMode = normalizeWeeklyLimitMode(safePatch.weeklyLimitMode);
   }
   if (Object.prototype.hasOwnProperty.call(safePatch, 'enableCliStatusLine')) {
     safePatch.enableCliStatusLine = Boolean(safePatch.enableCliStatusLine);
@@ -1398,29 +1347,76 @@ export function getAgentBadgeClass(index = 0, isMain = false) {
  * @returns {string}
  */
 export function formatAgentBadgeText(agent) {
+  const isSideQ = Boolean(
+    agent?.isSideQuestion ||
+      agent?.typeName === 'side_question' ||
+      /^旁\d*$/.test(String(agent?.badgeText || ''))
+  );
   if (!isEnglishLocale()) {
     if (!agent || agent.isMain) return agent?.badgeText || '主';
+    if (isSideQ) {
+      const sIdx = Number(agent.sideIndex || 0);
+      return agent.badgeText || (sIdx > 0 ? `旁${sIdx}` : '旁');
+    }
     return agent.badgeText || `子${agent.index || ''}`;
   }
   if (!agent || agent.isMain) return t('fmt.mainBadge');
-  return agent.index ? t('fmt.subBadge', { index: agent.index }) : t('fmt.subBadgeShort');
+  if (isSideQ) {
+    const m = String(agent.badgeText || '').match(/^旁(\d+)$/);
+    const sIdx = Number(agent.sideIndex || (m ? m[1] : 0));
+    return sIdx > 0 ? t('fmt.sideBadge', { index: sIdx }) : t('fmt.sideBadgeShort');
+  }
+  const subMatch = String(agent.badgeText || '').match(/^子(\d+)$/);
+  const subOrd = Number(subMatch ? subMatch[1] : agent.index || 0);
+  return subOrd > 0 ? t('fmt.subBadge', { index: subOrd }) : t('fmt.subBadgeShort');
 }
 
 /**
- * 格式化主/子代理的完整显示名称（如 `子代理 #1 · Codebase Researcher`）。
+ * 格式化主/子代理或旁路提问的完整显示名称（如 `子代理 #1 · Codebase Researcher` / `旁路提问 #1 · ...`）。
  *
  * @param {object|null|undefined} agent
  * @returns {string}
  */
 export function formatAgentLabel(agent) {
+  const isSideQ = Boolean(
+    agent?.isSideQuestion ||
+      agent?.typeName === 'side_question' ||
+      /^旁/.test(String(agent?.badgeText || agent?.shortLabel || ''))
+  );
   if (!isEnglishLocale()) {
     if (!agent) return '主代理';
     if (agent.isMain) return agent.shortLabel || '主代理';
+    if (isSideQ) {
+      const sIdx = Number(agent.sideIndex || 0);
+      const fallbackShort = sIdx > 0 ? `旁路提问 #${sIdx}` : '旁路提问';
+      const rolePart =
+        agent.role &&
+        agent.role !== '旁路提问' &&
+        agent.role !== 'Side Question' &&
+        agent.role !== agent.shortLabel
+          ? ` · ${agent.role}`
+          : '';
+      return `${agent.shortLabel || fallbackShort}${rolePart}`;
+    }
     const rolePart = agent.role && agent.role !== '子代理' ? ` · ${agent.role}` : '';
     return `${agent.shortLabel || '子代理'}${rolePart}`;
   }
   if (!agent || agent.isMain) return t('fmt.mainAgent');
-  const idx = Number(agent.index || 0);
+  if (isSideQ) {
+    const m = String(agent.shortLabel || agent.badgeText || '').match(/(\d+)/);
+    const sIdx = Number(agent.sideIndex || (m ? m[1] : 0));
+    const baseLabel = sIdx > 0 ? `${t('fmt.sideQuestion')} #${sIdx}` : t('fmt.sideQuestion');
+    const rolePart =
+      agent.role &&
+      agent.role !== '旁路提问' &&
+      agent.role !== 'Side Question' &&
+      agent.role !== agent.shortLabel
+        ? ` · ${agent.role}`
+        : '';
+    return `${baseLabel}${rolePart}`;
+  }
+  const subMatch = String(agent.shortLabel || agent.badgeText || '').match(/(\d+)/);
+  const idx = Number(subMatch ? subMatch[1] : agent.index || 0);
   const baseLabel = idx > 0 ? `${t('fmt.subAgent')} #${idx}` : t('fmt.subAgent');
   const rolePart =
     agent.role && agent.role !== '子代理' && agent.role !== 'Subagent' ? ` · ${agent.role}` : '';
@@ -1509,8 +1505,8 @@ export function resolveScopedConversation(
     }
     if (effectiveCtxScope === 'auto') {
       ctxAgent =
-        agents.find((a) => a.agentId === aggregated.activeAgentId) ||
-        agents.find((a) => a.isRunning) ||
+        agents.find((a) => !a.isSideQuestion && a.agentId === aggregated.activeAgentId) ||
+        agents.find((a) => !a.isSideQuestion && a.isRunning) ||
         mainAgent;
     }
   }
@@ -1526,4 +1522,22 @@ export function resolveScopedConversation(
     scopedConv,
     ctxAgent,
   };
+}
+
+/**
+ * 判断宿主系统是否为 macOS (`darwin`)：优先读取后端遥测或双栖桥接注入的 `platform`，首帧缺省时回退 UA/平台标识。
+ *
+ * @param {Record<string, any>|null|undefined} telemetry
+ * @returns {boolean}
+ */
+export function isMacHostPlatform(telemetry) {
+  const p = String(telemetry?.hostPlatform || readInjectedWindowBridge()?.platform || '')
+    .trim()
+    .toLowerCase();
+  if (p) return p === 'darwin';
+  if (typeof navigator !== 'undefined') {
+    const ua = String(navigator.platform || navigator.userAgent || '');
+    return /\b(?:mac|darwin)\b|macintosh|mac\s*os/i.test(ua);
+  }
+  return false;
 }

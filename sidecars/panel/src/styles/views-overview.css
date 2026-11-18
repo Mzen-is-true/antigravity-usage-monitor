@@ -94,6 +94,14 @@
 }
 
 /* --- 2. 多任务实时运行卡片列表与 4 格测速指标矩阵 (Live Running Tasks List & 4-Cell Telemetry Matrix) --- */
+.overview-modules-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
 .live-activity-list {
   display: flex;
   flex-direction: column;
@@ -156,8 +164,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 18px;
-  padding: 0 6px;
+  min-height: calc(18px * var(--ui-font-scale, 1));
+  padding: 1px 6px;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
@@ -477,7 +485,7 @@
 /* --- 4. 上下文双列图例网格 (Context 10-Channel Legend Grid) --- */
 .ctx-legend-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px var(--space-4);
   padding: 2px 0 0 0;
   background: transparent;
@@ -490,6 +498,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .legend-left {
@@ -547,8 +556,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 20px;
-  padding: 0 6px;
+  min-height: calc(20px * var(--ui-font-scale, 1));
+  padding: 1px 6px;
   border: 1px solid var(--border-hairline);
   background: var(--surface-panel);
   color: var(--text-secondary);

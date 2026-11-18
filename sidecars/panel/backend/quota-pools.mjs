@@ -9,7 +9,7 @@
  * - Proto3 零值省略兼容：当配额耗尽（`remainingFraction === 0`）导致字段被省略且存在尚未过期的有效 `resetTime` 时，正确识别为 0% 剩余（100% 已用）。
  */
 
-import { parseIsoMs } from '../speed-metrics.mjs';
+import { parseIsoMs } from '../trajectory-metrics.mjs';
 import {
   isArgonModelIdentifier,
   isCarbonModelIdentifier,

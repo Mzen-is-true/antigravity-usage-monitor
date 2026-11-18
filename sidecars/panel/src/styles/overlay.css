@@ -5,7 +5,7 @@
 
 /* --- 1. 顶栏胶囊宿主容器 (Titlebar Capsule Host) --- */
 :host(.wm-capsule-host) {
-  --ui-font-scale: 1;
+  --ui-font-scale: 1 !important;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -15,7 +15,7 @@
   -webkit-app-region: no-drag;
   pointer-events: auto;
   user-select: none;
-  font-family: "Google Sans Flex", "Google Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 12px;
   font-weight: 450;
   font-stretch: 100%;
@@ -24,6 +24,7 @@
   letter-spacing: 0.015em;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: var(--text-primary);
   z-index: 2147482900;
 }
@@ -75,6 +76,10 @@
   position: fixed;
   top: 6px;
   right: 144px;
+}
+
+:host(.wm-capsule-host[data-dock="fixed"][data-os="mac"]) {
+  right: 12px;
 }
 
 @keyframes wm-dot-pulse {
@@ -227,11 +232,11 @@
   flex-shrink: 0;
 }
 
-/* 环形上下文指示器（固定预占宽度 50px：14px 环 + 5px 间距 + 31px 百分比槽位） */
+/* 环形上下文指示器（固定预占宽度 58px：14px 环 + 5px 间距 + 完整容纳四字符 100%） */
 .wm-ctx-seg {
   justify-content: center;
   gap: 5px;
-  width: 50px;
+  width: 58px;
 }
 
 .wm-ring-svg {
@@ -266,8 +271,10 @@
 }
 
 .wm-ctx-pct {
-  min-width: 27px;
-  max-width: 31px;
+  min-width: 28px;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   text-align: left;
   font-weight: 500;
   color: var(--text-primary);
@@ -518,11 +525,12 @@
   overflow: visible;
   pointer-events: none;
   z-index: 2147483000;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--fs-body);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: var(--text-primary);
 }
 
@@ -581,7 +589,7 @@
   position: fixed;
   top: 42px;
   left: 12px;
-  width: min(522px, calc(100vw - 24px));
+  width: min(calc(522px * var(--ui-panel-scale, 1)), calc(100vw - 24px));
   max-height: calc(100vh - 54px);
   padding: var(--space-3) var(--space-4);
   display: flex;
@@ -605,7 +613,7 @@
   position: fixed;
   top: 42px;
   left: 12px;
-  width: min(464px, calc(100vw - 24px));
+  width: min(calc(464px * var(--ui-panel-scale, 1)), calc(100vw - 24px));
   max-height: calc(100vh - 54px);
   padding: 14px 16px;
   display: flex;
@@ -711,8 +719,8 @@
 .wm-pin-badge {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  padding: 0 5px;
+  min-height: calc(16px * var(--ui-font-scale, 1));
+  padding: 1px 5px;
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--accent-primary);
@@ -724,8 +732,8 @@
 .wm-session-tag {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  padding: 0 4px;
+  min-height: calc(16px * var(--ui-font-scale, 1));
+  padding: 1px 4px;
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-secondary);

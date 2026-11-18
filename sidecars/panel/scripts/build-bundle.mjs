@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Script } from 'node:vm';
 
 const PANEL_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -93,18 +94,18 @@ function consumeTrailingStatementEnd(source, startIdx) {
   return idx;
 }
 
-function scanImportDeclarationEnd(source, afterImportIdx) {
+function scanImportDeclarationEnd(source, afterImportIdx, onImport) {
   let idx = afterImportIdx;
   let braceDepth = 0;
-  let sawModuleSpecifierString = false;
   while (idx < source.length) {
     const ch = source[idx];
     if (ch === "'" || ch === '"') {
-      idx = skipSimpleString(source, idx);
+      const end = skipSimpleString(source, idx);
       if (braceDepth === 0) {
-        sawModuleSpecifierString = true;
-        return consumeTrailingStatementEnd(source, idx);
+        onImport?.(source.slice(idx + 1, end - 1), source.slice(afterImportIdx, idx));
+        return consumeTrailingStatementEnd(source, end);
       }
+      idx = end;
       continue;
     }
     if (ch === '/' && source[idx + 1] === '/') {
@@ -122,8 +123,6 @@ function scanImportDeclarationEnd(source, afterImportIdx) {
     else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1);
     else if (ch === ';' && braceDepth === 0) {
       return consumeTrailingStatementEnd(source, idx);
-    } else if (ch === '\n' && braceDepth === 0 && sawModuleSpecifierString) {
-      return idx + 1;
     }
     idx += 1;
   }
@@ -183,7 +182,7 @@ function scanExportClauseEnd(source, afterExportIdx) {
  * @param {string} source
  * @returns {string}
  */
-export function stripModuleSyntax(source) {
+export function stripModuleSyntax(source, onImport) {
   const len = source.length;
   let out = '';
   let i = 0;
@@ -356,7 +355,7 @@ export function stripModuleSyntax(source) {
         const nextCh = source[afterImport];
         // Exclude `import.meta` and dynamic `import(...)`
         if (nextCh && nextCh !== '.' && nextCh !== '(') {
-          i = scanImportDeclarationEnd(source, afterImport);
+          i = scanImportDeclarationEnd(source, afterImport, onImport);
           canStartRegex = true;
           prevNonWsChar = ';';
           continue;
@@ -428,7 +427,24 @@ export function stripModuleSyntax(source) {
   return out;
 }
 
-export function buildBundle() {
+function validateBundleImport(sourcePath, specifier, clause, bundledPaths) {
+  const binding = clause.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, ' ').trim();
+  if (binding) {
+    const named = /^\{([^}]*)\}\s*from$/.exec(binding);
+    const identifier = /^[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*$/u;
+    if (!named || named[1].split(',').map((item) => item.trim()).some((name) => name && !identifier.test(name))) {
+      throw new Error(`${sourcePath}: only named imports without aliases are supported in app.js`);
+    }
+  }
+  if (
+    !(specifier.startsWith('./') || specifier.startsWith('../')) ||
+    !bundledPaths.has(resolve(dirname(sourcePath), specifier))
+  ) {
+    throw new Error(`${sourcePath}: ${specifier} must appear earlier in jsOrder`);
+  }
+}
+
+export function buildBundle(panelDir = PANEL_DIR) {
   const cssOrder = [
     'src/styles/tokens.css',
     'src/styles/base.css',
@@ -443,12 +459,15 @@ export function buildBundle() {
 
   const cssBundle =
     cssOrder
-      .map((rel) => `/* --- ${rel} --- */\n${readFileSync(join(PANEL_DIR, rel), 'utf8').trim()}`)
+      .map(
+        (rel) =>
+          `/* --- ${rel} --- */\n${readFileSync(join(panelDir, rel), 'utf8').replace(/\r\n/g, '\n').trim()}`
+      )
       .join('\n\n') + '\n';
 
-  writeFileSync(join(PANEL_DIR, 'styles.css'), cssBundle, 'utf8');
-
   const jsOrder = [
+    'shared/settings-normalization.mjs',
+    'shared/window-bridge-protocol.mjs',
     'src/icons/svgRegistry.js',
     'src/icons/SvgIcon.js',
     'src/core/reactive.js',
@@ -500,24 +519,35 @@ export function buildBundle() {
     'src/main.js',
   ];
 
+  const bundledPaths = new Set();
   const innerModules = jsOrder
     .map((rel) => {
-      const raw = readFileSync(join(PANEL_DIR, rel), 'utf8');
-      const stripped = stripModuleSyntax(raw);
+      const path = resolve(panelDir, rel);
+      if (bundledPaths.has(path)) throw new Error(`${rel}: duplicate entry in jsOrder`);
+      const raw = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+      const stripped = stripModuleSyntax(raw, (specifier, clause) =>
+        validateBundleImport(path, specifier, clause, bundledPaths)
+      );
+      bundledPaths.add(path);
       return `// --- ${rel} ---\n${stripped.trim()}`;
     })
     .join('\n\n');
 
   const jsBundle = `(() => {\n'use strict';\n\n${innerModules}\n})();\n`;
-
-  writeFileSync(join(PANEL_DIR, 'app.js'), jsBundle, 'utf8');
+  new Script(jsBundle, { filename: 'app.js' });
 
   const ver = Date.now();
-  const indexHtmlPath = join(PANEL_DIR, 'index.html');
-  if (existsSync(indexHtmlPath)) {
-    const html = readFileSync(indexHtmlPath, 'utf8')
+  const indexHtmlPath = join(panelDir, 'index.html');
+  const html = existsSync(indexHtmlPath)
+    ? readFileSync(indexHtmlPath, 'utf8')
+      .replace(/\r\n/g, '\n')
       .replace(/href="\/styles\.css(?:\?v=[^"]*)?"/, `href="/styles.css?v=${ver}"`)
-      .replace(/src="\/app\.js(?:\?v=[^"]*)?"/, `src="/app.js?v=${ver}"`);
+      .replace(/src="\/app\.js(?:\?v=[^"]*)?"/, `src="/app.js?v=${ver}"`)
+    : null;
+
+  writeFileSync(join(panelDir, 'styles.css'), cssBundle, 'utf8');
+  writeFileSync(join(panelDir, 'app.js'), jsBundle, 'utf8');
+  if (html !== null) {
     writeFileSync(indexHtmlPath, html, 'utf8');
   }
 

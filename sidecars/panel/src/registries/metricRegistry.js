@@ -20,33 +20,10 @@ import {
 } from '../core/formatters.js';
 import { isEnglishLocale, t } from '../i18n/index.js';
 
-export const CAPSULE_METRIC_KEYS = Object.freeze([
-  'context',
-  'tps',
-  'ttft',
-  'avg_tps',
-  'cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'quota_auto',
-  'gemini_5h',
-  'gemini_weekly',
-  'claude_5h',
-  'claude_weekly',
-]);
+import { OVERVIEW_METRIC_KEYS, TOPBAR_SLOT_KEYS } from '../../shared/settings-normalization.mjs';
 
-export const OVERVIEW_METRIC_KEYS = Object.freeze([
-  'tps',
-  'ttft',
-  'avg_tps',
-  'step_cost',
-  'session_cost',
-  'cache_hit',
-  'session_tokens',
-  'context_usage',
-  'quota_tightest',
-]);
+export { OVERVIEW_METRIC_KEYS };
+export const CAPSULE_METRIC_KEYS = TOPBAR_SLOT_KEYS;
 
 const THIRD_PARTY_FAMILY_RE = /claude|gpt|anthropic|openai|3p|sonnet|opus|haiku/i;
 

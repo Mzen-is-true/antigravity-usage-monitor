@@ -347,10 +347,12 @@ export const StepTableWidget = defineComponent({
             const badgeText = isEnglishLocale()
               ? formatAgentBadgeText({
                   isMain: !st.isSubagent,
+                  isSideQuestion: Boolean(st.isSideQuestion),
+                  sideIndex: st.sideIndex || 0,
                   index: st.agentIndex || 0,
                   badgeText: st.agentBadge,
                 })
-              : st.agentBadge || (st.isSubagent ? '子' : '主');
+              : st.agentBadge || (st.isSideQuestion ? '旁' : st.isSubagent ? '子' : '主');
             patchText(refs.agentBadgeEl, badgeText);
 
             if (interactiveBadges && onSelectAgentScopes) {

@@ -10,7 +10,6 @@
 
 import { h, patchAttr, patchClasses, patchStyleVar, patchText } from '../../core/domPatch.js';
 import {
-  formatMetric,
   formatTokens,
   formatTokensPrecise,
   formatUsd,
@@ -420,21 +419,6 @@ export function computePublicationFit(
     sampleCiHalf,
     grid,
   };
-}
-
-/**
- * 计算样本点上的平滑回归拟合值序列（供单元测试与轻量调用直接读取）。
- *
- * @param {number[]} ys
- * @param {{ minVal?: number, maxVal?: number, xs?: number[] }} [bounds]
- * @returns {number[]}
- */
-export function computeLoessFit(ys, { minVal = 0, maxVal = Infinity, xs = null } = {}) {
-  const n = Array.isArray(ys) ? ys.length : 0;
-  if (n === 0) return [];
-  const xArr =
-    Array.isArray(xs) && xs.length === n ? xs : Array.from({ length: n }, (_, idx) => idx);
-  return computePublicationFit(xArr, ys, { minVal, maxVal }).sampleFits;
 }
 
 /**

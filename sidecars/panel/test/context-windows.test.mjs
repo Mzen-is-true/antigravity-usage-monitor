@@ -46,9 +46,11 @@ test('saves and restores one model at a time using host presets or verified mode
   assert.equal(carbonModel.id, carbonGroup);
   assert.equal(carbonModel.label, 'Gemini 4 Carbon');
   assert.deepEqual(carbonModel.members, [carbon, carbonLow]);
-  assert.equal(carbonModel.options.at(-1).tokens, 636000);
+  assert.deepEqual(carbonModel.options.map(({ tokens }) => tokens), [128000, 256000, 384000, 512000, 636000]);
   assert.equal((await update({ modelId: carbonGroup, option: '768000' })).status, 400);
   h.state.settings.modelContextWindows = { [carbon]: '768000', [carbonLow]: '256000' };
+  assert.equal((await update({ modelId: carbonGroup, option: '384000' })).status, 200);
+  assert.deepEqual({ ...h.loadSettings().modelContextWindows }, { [carbonGroup]: '384000' });
   assert.equal((await update({ modelId: carbonGroup, option: '512000' })).status, 200);
   assert.deepEqual({ ...h.loadSettings().modelContextWindows }, { [carbonGroup]: '512000' });
   assert.equal((await update({ modelId: carbonGroup, option: null })).status, 200);

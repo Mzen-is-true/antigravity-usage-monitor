@@ -8,8 +8,18 @@
  *    在宿主切换会话重建顶栏 DOM 时始终保持组件实例、滚动位置与动画状态不丢失。
  */
 
+import {
+  WINDOW_BRIDGE_KEY,
+  WINDOW_OVERLAY_KEY,
+  WINDOW_OVERLAY_METHODS,
+  readInjectedWindowBridge,
+} from '../../../shared/window-bridge-protocol.mjs';
 import { App } from '../../App.js';
-import { applyAppearanceToRoot } from '../../core/appearance.js';
+import {
+  PANEL_SCALE_FACTORS,
+  applyAppearanceToRoot,
+  normalizeClientFontScale,
+} from '../../core/appearance.js';
 import {
   h,
   isEventInside,
@@ -34,6 +44,7 @@ import {
   fetchTelemetry,
   formatAgentBadgeText,
   getAgentBadgeClass,
+  isMacHostPlatform,
   normalizeClientHoverModules,
   normalizeClientPopoverWidth,
   normalizeClientPopoverWidthMode,
@@ -813,7 +824,7 @@ function isImmediatelyBeforeNode(node, refNode) {
 function isIdeExtensionChatFrame() {
   try {
     if (typeof window === 'undefined') return false;
-    if (window.__AGUsageMonitorBridge?.isIdeChatFrame === true) return true;
+    if (readInjectedWindowBridge()?.isIdeChatFrame === true) return true;
     return /[?&]extension(?:View|Variant)=/i.test(String(window.location?.search || ''));
   } catch {
     return false;
@@ -824,7 +835,7 @@ function resolveActiveDockTarget(options = undefined) {
   const settings = telemetryStore.getState().telemetry?.settings;
   const rawMode =
     settings?.windowMountMode ??
-    (typeof window !== 'undefined' ? window.__AGUsageMonitorBridge?.mountMode : undefined);
+    readInjectedWindowBridge()?.mountMode;
   const mountMode =
     options?.mountMode ||
     normalizeClientWindowMountMode(rawMode, settings?.enableWindowOverlay);
@@ -925,14 +936,14 @@ export function mountWindowOverlay() {
   let carryOverMultiPinnedOpen = false;
   let carryOverPointer = null;
   try {
-    const prevOv = window.__AGUsageMonitorOverlay;
+    const prevOv = window[WINDOW_OVERLAY_KEY];
     carryOverTelemetry = prevOv?.getTelemetrySnapshot?.() || null;
     carryOverTooltipOpen = Boolean(prevOv?.isHoverOpen?.());
     carryOverPopoverOpen = Boolean(prevOv?.isOpen?.());
     carryOverMultiHoverOpen = Boolean(prevOv?.isMultiHoverOpen?.());
     carryOverMultiPinnedOpen = Boolean(prevOv?.isMultiPinnedOpen?.());
     carryOverPointer = prevOv?.getLastPointer?.() || null;
-    prevOv?.dispose?.();
+    prevOv?.[WINDOW_OVERLAY_METHODS.dispose]?.();
   } catch {
     // 忽略旧实例卸载异常
   }
@@ -1374,8 +1385,6 @@ export function mountWindowOverlay() {
   portalShadow.appendChild(portalStyleEl);
 
   const initialSettings = telemetryStore.getState().telemetry?.settings;
-  applyAppearanceToRoot(capsuleHost, initialSettings, { includeFontScale: false });
-  applyAppearanceToRoot(portalHost, initialSettings, { includeFontScale: true });
 
   // 悬停全景概览浮层（完全解耦至 widgetRegistry，由 hoverModules 动态驱动 0..4 个独立组件，零硬编码）
   const hoverUpdateVerText = h('span', { text: t('capsule.hoverNewVerGeneric') });
@@ -1584,9 +1593,19 @@ export function mountWindowOverlay() {
     [appInstance.el]
   );
 
+  function syncPortalAppearance(settings) {
+    applyAppearanceToRoot(capsuleHost, settings, { includeFontScale: false });
+    applyAppearanceToRoot(portalHost, settings, { includeFontScale: true });
+    const scaleKey = normalizeClientFontScale(settings?.fontScale);
+    popoverEl.setAttribute?.('data-font-scale', scaleKey);
+    hoverTipEl.setAttribute?.('data-font-scale', scaleKey);
+    multiPanelEl.setAttribute?.('data-font-scale', scaleKey);
+  }
+
   portalShadow.appendChild(multiPanelEl);
   portalShadow.appendChild(hoverTipEl);
   portalShadow.appendChild(popoverEl);
+  syncPortalAppearance(initialSettings);
   (document.body || document.documentElement).appendChild(portalHost);
 
   // --- 3. 几何测量、IDE 主题桥接、顶栏停靠与防溢出定位 ---
@@ -1759,6 +1778,8 @@ export function mountWindowOverlay() {
     return true;
   }
 
+  const isMac = () => isMacHostPlatform(telemetryStore.getState().telemetry);
+
   function updateFixedFallbackPosition() {
     const dockMode = capsuleHost.getAttribute('data-dock');
     if (dockMode === 'flow' || dockMode === 'ide-titlebar' || dockMode === 'composer') {
@@ -1768,18 +1789,29 @@ export function mountWindowOverlay() {
     }
     try {
       const vw = Number(window.innerWidth || 1280);
-      let rightOffset = 144;
+      const minRight = isMac() ? 12 : 144;
+      let rightOffset = minRight;
       const anchor = findNativeTopRightAnchor();
       if (anchor?.getBoundingClientRect) {
         const r = anchor.getBoundingClientRect();
         if (r.width > 0 && r.left > 0 && r.left < vw) {
-          rightOffset = Math.max(144, Math.ceil(vw - r.left + 6));
+          rightOffset = Math.max(minRight, Math.ceil(vw - r.left + 6));
         }
       }
       capsuleHost.style.top = '7px';
       capsuleHost.style.right = `${rightOffset}px`;
     } catch {
       // 忽略回退坐标计算异常
+    }
+  }
+
+  function syncCapsuleOsAttr() {
+    const nextOs = isMac() ? 'mac' : 'default';
+    if (capsuleHost.getAttribute('data-os') !== nextOs) {
+      patchAttr(capsuleHost, 'data-os', nextOs);
+      if (capsuleHost.getAttribute('data-dock') === 'fixed') {
+        updateFixedFallbackPosition();
+      }
     }
   }
 
@@ -1852,10 +1884,19 @@ export function mountWindowOverlay() {
               }
             }
           }
-          if (!hasVisibleWindowControls && navigator?.windowControlsOverlay?.visible) {
+          if (navigator?.windowControlsOverlay?.visible) {
             const wcoRect = navigator.windowControlsOverlay.getTitlebarAreaRect?.();
-            if (wcoRect && wcoRect.width > 0 && tbRect.right > wcoRect.right + 4) {
-              rightSiblingsWidth += tbRect.right - wcoRect.right;
+            if (wcoRect && wcoRect.width > 0) {
+              if (!hasVisibleWindowControls && tbRect.right > wcoRect.right + 4) {
+                rightSiblingsWidth += tbRect.right - wcoRect.right;
+              }
+              const leftOverlayInset = wcoRect.left - tbRect.left;
+              if (leftOverlayInset > leftContentWidth) {
+                leftContentWidth = Math.min(
+                  Math.round(tbRect.width * 0.45),
+                  Math.ceil(leftOverlayInset)
+                );
+              }
             }
           }
 
@@ -1868,10 +1909,11 @@ export function mountWindowOverlay() {
         if (tbRect.width > 0) {
           const titleEl = titlebar.firstElementChild;
           const titleInner = titleEl?.firstElementChild;
+          const macTrafficReserve = isMac() ? 80 : 168;
           const contentStart = titleInner?.getBoundingClientRect
             ? Math.max(8, titleInner.getBoundingClientRect().left - tbRect.left)
-            : tbRect.left < 168
-              ? 168 - tbRect.left
+            : tbRect.left < macTrafficReserve
+              ? macTrafficReserve - tbRect.left
               : 12;
           const minTitleWidth = 180;
           let siblingButtonsWidth = 64;
@@ -1925,8 +1967,17 @@ export function mountWindowOverlay() {
       const vh = Number(window.innerHeight || 800);
       const navRight = getLeftSidebarRightEdge(vw);
       const minLeft = navRight > 0 ? Math.max(12, navRight + 12) : 12;
-      const defaultCardW = Math.min(FLOATING_CARD_WIDTH, Math.max(280, vw - 24));
-      const defaultMultiW = Math.min(MULTI_PANEL_WIDTH, Math.max(280, vw - 24));
+      const curSettings = telemetryStore.getState().telemetry?.settings;
+      const panelScale =
+        PANEL_SCALE_FACTORS[normalizeClientFontScale(curSettings?.fontScale)] ?? 1;
+      const defaultCardW = Math.min(
+        Math.round(FLOATING_CARD_WIDTH * panelScale),
+        Math.max(280, vw - 24)
+      );
+      const defaultMultiW = Math.min(
+        Math.round(MULTI_PANEL_WIDTH * panelScale),
+        Math.max(280, vw - 24)
+      );
       const isDockComposer = capsuleHost.getAttribute('data-dock') === 'composer';
 
       if (multiOpen) {
@@ -1974,9 +2025,8 @@ export function mountWindowOverlay() {
 
       if (popoverOpen) {
         const maxPopCardW = Math.max(280, vw - minLeft - 12);
-        const curSettings = telemetryStore.getState().telemetry?.settings;
         const popWidthMode = normalizeClientPopoverWidthMode(curSettings?.popoverWidthMode);
-        let desiredPopW = Math.min(POPOVER_BASE_WIDTH, maxPopCardW);
+        let desiredPopW = Math.min(Math.round(POPOVER_BASE_WIDTH * panelScale), maxPopCardW);
         if (popWidthMode === 'custom') {
           desiredPopW = Math.min(
             normalizeClientPopoverWidth(curSettings?.popoverWidth),
@@ -2141,6 +2191,7 @@ export function mountWindowOverlay() {
     if (bodyOrDoc && !portalHost.isConnected) {
       bodyOrDoc.appendChild(portalHost);
     }
+    syncCapsuleOsAttr();
     ensureWorkbenchThemeObserved();
 
     const dockTarget = resolveRuntimeDockTarget();
@@ -2624,8 +2675,8 @@ export function mountWindowOverlay() {
     const telemetry = telSt.telemetry;
 
     setI18nLanguage(telemetry?.settings?.language);
-    applyAppearanceToRoot(capsuleHost, telemetry?.settings, { includeFontScale: false });
-    applyAppearanceToRoot(portalHost, telemetry?.settings, { includeFontScale: true });
+    syncPortalAppearance(telemetry?.settings);
+    syncCapsuleOsAttr();
 
     const showMulti = telemetry?.settings?.showTopbarMultiSession !== false;
     patchAttr(multiBtn, 'hidden', !showMulti);
@@ -3070,28 +3121,28 @@ export function mountWindowOverlay() {
 
   const handle = {
     bundleVersion,
-    ensureAlive() {
+    [WINDOW_OVERLAY_METHODS.ensureAlive]() {
       if (disposed) return false;
       return ensureCapsuleDocked();
     },
-    syncHostRoute() {
+    [WINDOW_OVERLAY_METHODS.syncHostRoute]() {
       if (disposed) return false;
       syncHostRouteIfChanged();
       return true;
     },
-    updateBridge(nextBridge) {
+    [WINDOW_OVERLAY_METHODS.updateBridge](nextBridge) {
       if (disposed || !nextBridge || typeof nextBridge !== 'object') return false;
       const port = Number(nextBridge.port || 0);
       const token = String(nextBridge.token || '');
       if (!Number.isInteger(port) || port <= 0 || !token) return false;
-      const cur = window.__AGUsageMonitorBridge || {};
+      const cur = readInjectedWindowBridge() || {};
       const portChanged = Number(cur.port || 0) !== port || String(cur.token || '') !== token;
       cur.port = port;
       cur.token = token;
       if (portChanged) {
         cur.transportMode = 'http';
       }
-      window.__AGUsageMonitorBridge = cur;
+      window[WINDOW_BRIDGE_KEY] = cur;
       void fetchTelemetry({ force: false });
       return true;
     },
@@ -3101,7 +3152,7 @@ export function mountWindowOverlay() {
     getLastPointer() {
       return hasPointerCoords ? { x: lastPointerX, y: lastPointerY } : null;
     },
-    deliverRpc(responses) {
+    [WINDOW_OVERLAY_METHODS.deliverRpc](responses) {
       if (disposed) return 0;
       return deliverCdpBridgeResponses(responses);
     },
@@ -3126,14 +3177,13 @@ export function mountWindowOverlay() {
     isMultiHoverOpen: () => Boolean(multiOpen && !multiPinned),
     isMultiPinnedOpen: () => Boolean(multiOpen && multiPinned),
     getLayoutMode: () => layoutMode,
-    getDockKind: () => String(capsuleHost.getAttribute('data-dock') || ''),
-    getMountMode: () => lastAppliedMountMode,
-    applyMountMode(nextMode) {
+    [WINDOW_OVERLAY_METHODS.getDockKind]: () => String(capsuleHost.getAttribute('data-dock') || ''),
+    [WINDOW_OVERLAY_METHODS.getMountMode]: () => lastAppliedMountMode,
+    [WINDOW_OVERLAY_METHODS.applyMountMode](nextMode) {
       if (disposed) return false;
       const normalized = normalizeClientWindowMountMode(nextMode, nextMode !== 'sidebar');
-      if (typeof window !== 'undefined' && window.__AGUsageMonitorBridge) {
-        window.__AGUsageMonitorBridge.mountMode = normalized;
-      }
+      const bridgeConfig = readInjectedWindowBridge();
+      if (bridgeConfig) bridgeConfig.mountMode = normalized;
       const curTel = telemetryStore.getState().telemetry;
       if (curTel?.settings) {
         telemetryStore.setState({
@@ -3150,7 +3200,7 @@ export function mountWindowOverlay() {
       lastAppliedMountMode = normalized;
       return ensureCapsuleDocked();
     },
-    dispose() {
+    [WINDOW_OVERLAY_METHODS.dispose]() {
       if (disposed) return;
       disposed = true;
       clearInterval(watchdogTimer);
@@ -3203,12 +3253,12 @@ export function mountWindowOverlay() {
       try {
         portalHost.remove();
       } catch {}
-      if (window.__AGUsageMonitorOverlay === handle) {
-        delete window.__AGUsageMonitorOverlay;
+      if (window[WINDOW_OVERLAY_KEY] === handle) {
+        delete window[WINDOW_OVERLAY_KEY];
       }
     },
   };
 
-  window.__AGUsageMonitorOverlay = handle;
+  window[WINDOW_OVERLAY_KEY] = handle;
   return handle;
 }

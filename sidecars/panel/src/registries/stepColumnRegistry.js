@@ -224,7 +224,7 @@ export const STEP_COLUMN_REGISTRY = Object.freeze({
       if (reason && !refs.speedReason) {
         refs.speedReason = h('div', {
           className: 'text-muted',
-          style: 'font-size: var(--fs-2xs);',
+          style: 'font-size: var(--fs-xs);',
         });
         refs.wrapEl.appendChild(refs.speedReason);
       }
