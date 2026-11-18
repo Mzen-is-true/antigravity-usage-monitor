@@ -39,6 +39,7 @@ import {
   normalizeClientTopbarSlots,
   normalizeClientWindowMountMode,
   saveSettingsPatch,
+  triggerHostCdpSetup,
 } from '../../store/telemetryStore.js';
 import { getVisibleMonitorView, uiStore } from '../../store/uiStore.js';
 import { CollapsibleSection } from '../../components/settings/CollapsibleSection.js';
@@ -119,6 +120,9 @@ export const SettingsStructureTab = defineComponent({
     let rawStepTokenComboText = DEFAULT_CLIENT_STEP_TOKEN_COMBO_FORMAT;
     let draftStepColumns = [...DEFAULT_CLIENT_STEP_COLUMNS];
     let latestSettings = null;
+    let latestWindowBridge = null;
+    let cdpBusyAction = '';
+    let cdpFeedbackTimer = null;
 
     function isStructureVisible() {
       const st = uiStore.getState();
@@ -236,6 +240,7 @@ export const SettingsStructureTab = defineComponent({
         const nextMode = normalizeClientWindowMountMode(val);
         draftWindowMountMode = nextMode;
         syncMountSectionMeta();
+        syncCdpSetupCard();
         props.onLayoutChange?.();
         void persistStructurePatch(mountSection, {
           windowMountMode: nextMode,
@@ -243,6 +248,262 @@ export const SettingsStructureTab = defineComponent({
         });
       },
     });
+
+    const cdpTitleEl = h('span', {
+      className: 'cdp-setup-title',
+      text: t('settings.str.cdpTitle'),
+    });
+    const cdpBadgeEl = h('span', {
+      className: 'status-tag cdp-setup-badge',
+      text: t('settings.str.cdpStateMissing'),
+    });
+    const cdpDescEl = h('p', {
+      className: 'cdp-setup-desc',
+      text: '',
+    });
+    const cdpFeedbackEl = h('span', {
+      className: 'cdp-setup-feedback text-muted',
+      hidden: true,
+      text: '',
+    });
+
+    function showCdpFeedback(msg, autoClearMs = 4500) {
+      if (cdpFeedbackTimer) {
+        clearTimeout(cdpFeedbackTimer);
+        cdpFeedbackTimer = null;
+      }
+      patchAttr(cdpFeedbackEl, 'hidden', !msg);
+      patchText(cdpFeedbackEl, msg || '');
+      if (msg && autoClearMs > 0) {
+        cdpFeedbackTimer = setTimeout(() => {
+          cdpFeedbackTimer = null;
+          patchAttr(cdpFeedbackEl, 'hidden', true);
+          patchText(cdpFeedbackEl, '');
+        }, autoClearMs);
+      }
+    }
+
+    const cdpApplyBtnText = h('span', { text: t('settings.str.cdpApplyBtn') });
+    const cdpApplyBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-primary cdp-action-btn',
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'apply';
+          syncCdpSetupCard();
+          try {
+            const res = await triggerHostCdpSetup('apply');
+            if (res?.ok) {
+              showCdpFeedback(
+                t('settings.str.cdpAppliedMsg', {
+                  count: Number(res.configuredShortcuts || res.updatedShortcuts || 1),
+                }),
+                6000
+              );
+            } else {
+              showCdpFeedback(
+                t('settings.str.cdpFailedMsg', { err: res?.error || 'unknown' }),
+                5000
+              );
+            }
+          } catch (err) {
+            showCdpFeedback(
+              t('settings.str.cdpFailedMsg', { err: err?.message || 'error' }),
+              5000
+            );
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [createSvgIcon('bolt', { size: 12 }), cdpApplyBtnText]
+    );
+
+    const cdpRecheckBtnText = h('span', { text: t('settings.str.cdpRecheckBtn') });
+    const cdpRecheckBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'check';
+          syncCdpSetupCard();
+          try {
+            await triggerHostCdpSetup('check');
+          } catch {
+            // ignore transient check error
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [createSvgIcon('refresh', { size: 12 }), cdpRecheckBtnText]
+    );
+
+    const cdpRestoreBtnText = h('span', { text: t('settings.str.cdpRestoreBtn') });
+    const cdpRestoreBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        hidden: true,
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'restore';
+          syncCdpSetupCard();
+          try {
+            const res = await triggerHostCdpSetup('restore');
+            if (res?.ok) {
+              showCdpFeedback(t('settings.str.cdpRestoredMsg'), 4500);
+            } else {
+              showCdpFeedback(
+                t('settings.str.cdpFailedMsg', { err: res?.error || 'unknown' }),
+                5000
+              );
+            }
+          } catch (err) {
+            showCdpFeedback(
+              t('settings.str.cdpFailedMsg', { err: err?.message || 'error' }),
+              5000
+            );
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [cdpRestoreBtnText]
+    );
+
+    const cdpCopyCmdBtnText = h('span', { text: t('settings.str.cdpCopyCmdBtn') });
+    const cdpCopyCmdBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        hidden: true,
+        onClick: async () => {
+          const cmd = String(latestWindowBridge?.cdpSetup?.manualLaunchCommand || '').trim();
+          if (!cmd) return;
+          try {
+            await navigator?.clipboard?.writeText?.(cmd);
+            showCdpFeedback(t('settings.str.cdpCopiedMsg'), 3000);
+          } catch {
+            showCdpFeedback(cmd, 6000);
+          }
+        },
+      },
+      [cdpCopyCmdBtnText]
+    );
+
+    const cdpSetupBox = h('div', { className: 'cdp-setup-box', hidden: true }, [
+      h('div', { className: 'cdp-setup-head' }, [cdpTitleEl, cdpBadgeEl]),
+      cdpDescEl,
+      h('div', { className: 'cdp-setup-actions' }, [
+        cdpApplyBtn,
+        cdpCopyCmdBtn,
+        cdpRecheckBtn,
+        cdpRestoreBtn,
+      ]),
+      cdpFeedbackEl,
+    ]);
+
+    function syncCdpSetupCard() {
+      const wb = latestWindowBridge;
+      const isStandalone =
+        typeof document !== 'undefined' &&
+        document?.documentElement?.dataset?.standalone === 'true';
+      const showBox =
+        Boolean(wb) &&
+        !isStandalone &&
+        draftWindowMountMode !== 'sidebar' &&
+        (wb.state === 'mounted' ||
+          wb.state === 'no_devtools_port' ||
+          wb.state === 'cdp_unreachable');
+      patchAttr(cdpSetupBox, 'hidden', !showBox);
+      if (!showBox) return;
+
+      patchText(cdpTitleEl, t('settings.str.cdpTitle'));
+      patchText(cdpRecheckBtnText, t('settings.str.cdpRecheckBtn'));
+      patchText(cdpRestoreBtnText, t('settings.str.cdpRestoreBtn'));
+      patchText(cdpCopyCmdBtnText, t('settings.str.cdpCopyCmdBtn'));
+
+      const isMounted = wb.state === 'mounted';
+      const setup = wb.cdpSetup || null;
+      const isWinSupported = setup ? setup.supported !== false : true;
+      const readyRestart = !isMounted && Boolean(setup?.shortcutsConfigured);
+      const canRestore = Boolean(setup?.hasBackup || Number(setup?.configuredShortcuts || 0) > 0);
+
+      patchClasses(cdpSetupBox, {
+        'is-mounted': isMounted,
+        'is-warn': !isMounted,
+      });
+      patchClasses(cdpBadgeEl, {
+        'state-warn': !isMounted,
+        'state-synced': readyRestart,
+      });
+
+      if (isMounted) {
+        patchText(
+          cdpBadgeEl,
+          t('settings.str.cdpStateMounted', { count: Math.max(1, Number(wb.aliveCount || 1)) })
+        );
+        patchText(cdpDescEl, t('settings.str.cdpDescMounted'));
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', true);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      } else if (!isWinSupported) {
+        const cmd = setup?.manualLaunchCommand || 'antigravity --remote-debugging-port=0';
+        patchText(cdpBadgeEl, t('settings.str.cdpStateMissing'));
+        patchText(cdpDescEl, t('settings.str.cdpDescNonWin', { cmd }));
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', false);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', true);
+      } else if (readyRestart) {
+        patchText(cdpBadgeEl, t('settings.str.cdpStateReadyRestart'));
+        patchText(
+          cdpDescEl,
+          t('settings.str.cdpDescReadyRestart', {
+            configured: Number(setup?.configuredShortcuts || 0),
+            total: Number(setup?.totalShortcuts || 0),
+          })
+        );
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      } else {
+        patchText(cdpBadgeEl, t('settings.str.cdpStateMissing'));
+        patchText(
+          cdpDescEl,
+          setup?.launchedByUpdater
+            ? t('settings.str.cdpDescUpdatedWin')
+            : t('settings.str.cdpDescMissingWin')
+        );
+        patchAttr(cdpApplyBtn, 'hidden', false);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      }
+
+      patchText(
+        cdpApplyBtnText,
+        cdpBusyAction === 'apply' ? t('settings.str.cdpApplyingBtn') : t('settings.str.cdpApplyBtn')
+      );
+      patchAttr(cdpApplyBtn, 'disabled', Boolean(cdpBusyAction));
+      patchAttr(cdpRecheckBtn, 'disabled', Boolean(cdpBusyAction));
+      patchAttr(cdpRestoreBtn, 'disabled', Boolean(cdpBusyAction));
+    }
 
     const popoverWidthStepper = CustomNumberInput({
       modelValue: draftPopoverWidth,
@@ -362,6 +623,7 @@ export const SettingsStructureTab = defineComponent({
         mountPreviewCanvas,
         h('div', { className: 'settings-divider' }),
         h('div', { className: 'form-row' }, [mountModeLabelEl, windowMountSelect.el]),
+        cdpSetupBox,
         h('div', { className: 'form-row' }, [
           h('div', { className: 'settings-inline-row' }, [
             popoverWidthLabelEl,
@@ -1008,6 +1270,7 @@ export const SettingsStructureTab = defineComponent({
       draftStepColumns = normalizeClientStepColumns(settings.stepTableColumns);
 
       syncMountSectionMeta();
+      syncCdpSetupCard();
       syncHoverSectionMeta();
       syncOverviewSectionMeta();
       syncStepsSectionMeta();
@@ -1051,6 +1314,7 @@ export const SettingsStructureTab = defineComponent({
       patchText(stepColsLabelEl, t('settings.str.stepsColsLabel'));
 
       syncMountSectionMeta();
+      syncCdpSetupCard();
       syncHoverSectionMeta();
       syncOverviewSectionMeta();
       syncStepsSectionMeta();
@@ -1085,7 +1349,13 @@ export const SettingsStructureTab = defineComponent({
     syncStepsSectionMeta();
     applyActiveThirdTab(activeThirdTab);
 
+    function renderWindowBridgeStatus(wb) {
+      latestWindowBridge = wb || null;
+      syncCdpSetupCard();
+    }
+
     onCleanup(() => {
+      if (cdpFeedbackTimer) clearTimeout(cdpFeedbackTimer);
       unsubUi();
       capsulePreviewWidget.destroy();
       hoverPreviewHost.destroy();
@@ -1134,6 +1404,7 @@ export const SettingsStructureTab = defineComponent({
         overviewSection,
         stepsSection,
         renderSettings,
+        renderWindowBridgeStatus,
         refreshLabels,
       },
     };

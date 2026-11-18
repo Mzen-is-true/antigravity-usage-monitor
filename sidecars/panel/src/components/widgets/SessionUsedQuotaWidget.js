@@ -107,11 +107,16 @@ export function syncUsedPoolQuotaRow(refs, item, idx, rowEl) {
         : costUsd;
 
     patchText(refs.title5h, t('usedQuota.win5hTitle', { pool: poolLabel }));
+    patchText(refs.metaReset5h, '');
     patchText(
-      refs.meta5h,
+      refs.metaPrimary5h,
       hasWk
         ? `${pctText5h} · ${formatTokens(tok5h)} (${formatUsd(cost5h)})`
-        : `${pctText5h} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+        : `${pctText5h} · ${formatTokens(totalTok)} (${formatUsd(costUsd)})`
+    );
+    patchText(
+      refs.metaExtra5h,
+      hasWk ? '' : ` · ${t('usedQuota.callsInline', { calls })}`
     );
     const bar5hPct = hasPct5h && pct5hVal > 0 ? Math.min(100, Math.max(1.2, pct5hVal)) : 0;
     patchStyleVar(refs.fill5h, '--fill-w', `${bar5hPct}%`);
@@ -136,10 +141,12 @@ export function syncUsedPoolQuotaRow(refs, item, idx, rowEl) {
         ? t('usedQuota.winFallbackTitle', { pool: poolLabel })
         : t('usedQuota.winWkTitle', { pool: poolLabel })
     );
+    patchText(refs.metaResetWk, '');
     patchText(
-      refs.metaWk,
-      `${pctTextWk} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+      refs.metaPrimaryWk,
+      `${pctTextWk} · ${formatTokens(totalTok)} (${formatUsd(costUsd)})`
     );
+    patchText(refs.metaExtraWk, ` · ${t('usedQuota.callsInline', { calls })}`);
     const barWkPct = hasPctWk && pctWkVal > 0 ? Math.min(100, Math.max(1.2, pctWkVal)) : 0;
     patchStyleVar(refs.fillWk, '--fill-w', `${barWkPct}%`);
     patchClasses(refs.fillWk, {
@@ -196,8 +203,8 @@ export const SessionUsedQuotaWidget = defineComponent({
       h(
         'div',
         compactHover
-          ? { className: 'panel-header wm-hover-quota-foot' }
-          : { className: 'panel-header', style: 'font-size: var(--fs-md); padding-top: 2px;' },
+          ? { className: 'panel-header wm-hover-quota-foot quota-card-foot' }
+          : { className: 'panel-header quota-card-foot', style: 'font-size: var(--fs-md); padding-top: 2px;' },
         [usedFootLeft, usedFootRight]
       ),
     ]);

@@ -49,6 +49,11 @@ import {
   notifyWindowOverlaySetting,
   startDefaultWindowBridge,
 } from './window-bridge.mjs';
+import {
+  applyHostCdpSetup,
+  inspectHostCdpSetup,
+  restoreHostCdpSetup,
+} from './host-cdp-config.mjs';
 import { ensureCliStatusLineConfigured } from './cli-statusline-config.mjs';
 
 export const bootBundleVersion = computeRuntimeCodeVersion();
@@ -491,7 +496,64 @@ export async function executeAccountCredentialAction(data) {
   };
 }
 
+export async function executeCdpSetupAction(method, data) {
+  const upperMethod = String(method || 'GET').toUpperCase();
+  if (upperMethod === 'GET') {
+    const cdpSetup = await inspectHostCdpSetup({ force: true });
+    return {
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ ok: true, cdpSetup }),
+    };
+  }
+  const action = String(data?.action || 'apply').trim().toLowerCase();
+  if (action === 'restore') {
+    const result = await restoreHostCdpSetup();
+    const curSettings = loadSettings();
+    const nextSettings = normalizeFullSettings({
+      ...curSettings,
+      autoMaintainCdpShortcuts: false,
+    });
+    saveJson(SETTINGS_FILE, nextSettings);
+    return {
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ ...result, settings: nextSettings }),
+    };
+  }
+  if (action === 'check' || action === 'inspect') {
+    const cdpSetup = await inspectHostCdpSetup({ force: true });
+    return {
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ ok: true, cdpSetup }),
+    };
+  }
+  const port = Number.isInteger(Number(data?.port)) ? Number(data.port) : 0;
+  const result = await applyHostCdpSetup({ port });
+  let nextSettings = loadSettings();
+  if (result.ok) {
+    nextSettings = normalizeFullSettings({
+      ...nextSettings,
+      autoMaintainCdpShortcuts: true,
+    });
+    saveJson(SETTINGS_FILE, nextSettings);
+  }
+  return {
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'Cache-Control': 'no-store' },
+    body: JSON.stringify({ ...result, settings: nextSettings }),
+  };
+}
+
 export async function dispatchBridgeApiRequest(pathname, method, data, opts = undefined) {
+  if (pathname === '/api/cdp-setup' && (method === 'GET' || method === 'POST')) {
+    return executeCdpSetupAction(method, data);
+  }
   if (pathname === '/api/telemetry' && method === 'GET') {
     return executeTelemetryAction(data, opts);
   }

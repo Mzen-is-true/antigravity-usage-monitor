@@ -6,13 +6,17 @@
  */
 
 import { defineComponent } from '../core/component.js';
-import { h } from '../core/domPatch.js';
-import { i18nStore } from '../i18n/index.js';
+import { h, patchAttr, patchClasses, patchText } from '../core/domPatch.js';
+import { isWindowOverlayMode } from '../core/httpClient.js';
+import { createSvgIcon } from '../icons/SvgIcon.js';
+import { i18nStore, t } from '../i18n/index.js';
 import { createDynamicWidgetHost } from '../registries/widgetRegistry.js';
 import {
   DEFAULT_CLIENT_OVERVIEW_MODULES,
   normalizeClientOverviewModules,
+  normalizeClientWindowMountMode,
   telemetryStore,
+  triggerHostCdpSetup,
 } from '../store/telemetryStore.js';
 import { getVisibleMonitorView, uiStore } from '../store/uiStore.js';
 import { CustomScrollbar } from '../components/ui/CustomScrollbar.js';
@@ -34,9 +38,84 @@ export {
 export const LiveOverviewView = defineComponent({
   name: 'LiveOverviewView',
   setup({ onCleanup }) {
+    let bannerDismissed = false;
+    let bannerApplying = false;
+
+    const cdpBannerTextEl = h('span', {
+      className: 'cdp-banner-text',
+      text: t('overview.cdpBannerNeedApply'),
+    });
+    const cdpBannerApplyBtn = h('button', {
+      type: 'button',
+      className: 'cdp-banner-btn is-primary',
+      text: t('overview.cdpBannerApplyBtn'),
+      onClick: async () => {
+        if (bannerApplying) return;
+        bannerApplying = true;
+        patchAttr(cdpBannerApplyBtn, 'disabled', true);
+        patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplying'));
+        try {
+          await triggerHostCdpSetup('apply');
+        } catch {
+          // 交由下次轮询或设置页详细提示反馈
+        } finally {
+          bannerApplying = false;
+          patchAttr(cdpBannerApplyBtn, 'disabled', false);
+          patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplyBtn'));
+        }
+      },
+    });
+    const cdpBannerSettingsBtn = h('button', {
+      type: 'button',
+      className: 'cdp-banner-btn',
+      text: t('overview.cdpBannerSettingsBtn'),
+      onClick: () => {
+        uiStore.setState({
+          activeView: 'settings',
+          settingsSubTab: 'structure',
+          settingsStructureTab: 'mount',
+        });
+      },
+    });
+    const cdpBannerDismissBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'cdp-banner-dismiss',
+        'aria-label': t('overview.cdpBannerDismissAria'),
+        title: t('overview.cdpBannerDismissAria'),
+        onClick: () => {
+          bannerDismissed = true;
+          patchAttr(cdpBannerEl, 'hidden', true);
+          viewScrollbar.refresh();
+        },
+      },
+      [createSvgIcon('close', { size: 11 })]
+    );
+    const cdpBannerEl = h(
+      'div',
+      { className: 'cdp-inline-banner', hidden: true },
+      [
+        h('span', { className: 'cdp-banner-main' }, [
+          createSvgIcon('dock', { size: 12 }),
+          cdpBannerTextEl,
+        ]),
+        h('span', { className: 'cdp-banner-actions' }, [
+          cdpBannerApplyBtn,
+          cdpBannerSettingsBtn,
+          cdpBannerDismissBtn,
+        ]),
+      ]
+    );
+
     const overviewInner = h('div', {
       className: 'overview-modules-host',
     });
+
+    const overviewStack = h('div', { className: 'overview-scroll-stack' }, [
+      cdpBannerEl,
+      overviewInner,
+    ]);
 
     const widgetHost = createDynamicWidgetHost({
       containerEl: overviewInner,
@@ -46,7 +125,7 @@ export const LiveOverviewView = defineComponent({
     });
 
     const viewScrollbar = CustomScrollbar({
-      contentEl: overviewInner,
+      contentEl: overviewStack,
       className: 'view-pane',
     });
 
@@ -75,8 +154,44 @@ export const LiveOverviewView = defineComponent({
       }
     }
 
+    function syncCdpBanner(data) {
+      const isStandalone =
+        typeof document !== 'undefined' &&
+        document?.documentElement?.dataset?.standalone === 'true';
+      const mountMode = normalizeClientWindowMountMode(
+        data?.settings?.windowMountMode,
+        data?.settings?.enableWindowOverlay
+      );
+      const wb = data?.windowBridge;
+      const shouldShow =
+        !bannerDismissed &&
+        !isWindowOverlayMode() &&
+        !isStandalone &&
+        mountMode !== 'sidebar' &&
+        wb &&
+        wb.state === 'no_devtools_port';
+      patchAttr(cdpBannerEl, 'hidden', !shouldShow);
+      if (!shouldShow) return;
+
+      const readyRestart = Boolean(wb.cdpSetup?.shortcutsConfigured);
+      patchClasses(cdpBannerEl, { 'is-ready': readyRestart });
+      patchText(
+        cdpBannerTextEl,
+        readyRestart ? t('overview.cdpBannerNeedRestart') : t('overview.cdpBannerNeedApply')
+      );
+      const showQuickApply = !readyRestart && wb.cdpSetup?.supported !== false;
+      patchAttr(cdpBannerApplyBtn, 'hidden', !showQuickApply);
+      if (!bannerApplying) {
+        patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplyBtn'));
+      }
+      patchText(cdpBannerSettingsBtn, t('overview.cdpBannerSettingsBtn'));
+      patchAttr(cdpBannerDismissBtn, 'aria-label', t('overview.cdpBannerDismissAria'));
+      patchAttr(cdpBannerDismissBtn, 'title', t('overview.cdpBannerDismissAria'));
+    }
+
     function renderData(data) {
       if (!data) return;
+      syncCdpBanner(data);
       const moduleKeys = normalizeClientOverviewModules(data.settings?.overviewModules);
       const minuteTick = Math.floor(Date.now() / 30000);
       widgetHost.update({

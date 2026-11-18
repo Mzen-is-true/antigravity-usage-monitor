@@ -586,11 +586,12 @@
 
 /* 顶栏胶囊悬停全景概览浮层（复用实时概览三卡片架构，全槽位预占，仅就地更新节点不跳动） */
 .wm-hover-tip {
+  container-type: inline-size;
   position: fixed;
   top: 42px;
   left: 12px;
   width: min(calc(522px * var(--ui-panel-scale, 1)), calc(100vw - 24px));
-  max-height: calc(100vh - 54px);
+  max-height: calc(100dvh - 54px);
   padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;

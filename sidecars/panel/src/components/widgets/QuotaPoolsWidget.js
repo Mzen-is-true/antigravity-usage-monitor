@@ -71,9 +71,16 @@ export function createPoolQuotaRow() {
   const title5h = h('span', { className: 'quota-win-title', text: '5h' });
   const usage5h = h('span', { className: 'quota-win-usage', hidden: true, text: '' });
   const left5h = h('span', { className: 'quota-win-left' }, [title5h, usage5h]);
-  const meta5h = h('span', { className: 'panel-meta quota-win-meta text-mono', text: '--' });
+  const metaReset5h = h('span', { className: 'quota-meta-reset', text: '' });
+  const metaPrimary5h = h('span', { className: 'quota-meta-primary', text: '--' });
+  const metaExtra5h = h('span', { className: 'quota-meta-extra', text: '' });
+  const meta5h = h('span', { className: 'panel-meta quota-win-meta text-mono' }, [
+    metaReset5h,
+    metaPrimary5h,
+    metaExtra5h,
+  ]);
   const fill5h = h('div', { className: 'progress-fill' });
-  const row5h = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' }, [
+  const row5h = h('div', { style: 'display: flex; flex-direction: column; gap: 4px; min-width: 0;' }, [
     h('div', { className: 'panel-header quota-win-head' }, [left5h, meta5h]),
     h('div', { className: 'progress-track' }, [fill5h]),
   ]);
@@ -81,14 +88,21 @@ export function createPoolQuotaRow() {
   const titleWk = h('span', { className: 'quota-win-title', text: t('quota.weeklyShort') });
   const usageWk = h('span', { className: 'quota-win-usage', hidden: true, text: '' });
   const leftWk = h('span', { className: 'quota-win-left' }, [titleWk, usageWk]);
-  const metaWk = h('span', { className: 'panel-meta quota-win-meta text-mono', text: '--' });
+  const metaResetWk = h('span', { className: 'quota-meta-reset', text: '' });
+  const metaPrimaryWk = h('span', { className: 'quota-meta-primary', text: '--' });
+  const metaExtraWk = h('span', { className: 'quota-meta-extra', text: '' });
+  const metaWk = h('span', { className: 'panel-meta quota-win-meta text-mono' }, [
+    metaResetWk,
+    metaPrimaryWk,
+    metaExtraWk,
+  ]);
   const fillWk = h('div', { className: 'progress-fill' });
-  const rowWk = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' }, [
+  const rowWk = h('div', { style: 'display: flex; flex-direction: column; gap: 4px; min-width: 0;' }, [
     h('div', { className: 'panel-header quota-win-head' }, [leftWk, metaWk]),
     h('div', { className: 'progress-track' }, [fillWk]),
   ]);
 
-  const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, [
+  const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px; min-width: 0;' }, [
     row5h,
     rowWk,
   ]);
@@ -101,12 +115,18 @@ export function createPoolQuotaRow() {
       title5h,
       usage5h,
       meta5h,
+      metaReset5h,
+      metaPrimary5h,
+      metaExtra5h,
       fill5h,
       rowWk,
       leftWk,
       titleWk,
       usageWk,
       metaWk,
+      metaResetWk,
+      metaPrimaryWk,
+      metaExtraWk,
       fillWk,
     },
   };
@@ -196,16 +216,23 @@ export function syncPoolQuotaRow(refs, item, idx, rowEl) {
     patchText(refs.usage5h, '');
     patchAttr(refs.left5h, 'title', null);
   }
-  patchText(
-    refs.meta5h,
-    has5h
-      ? t('quota.usedAndLeft', {
-          reset: formatCountdown(poolData.resetTime),
-          used: used5hVal.toFixed(1),
-          rem: rem5hVal.toFixed(1),
-        })
-      : fallbackMetaText
-  );
+  if (has5h) {
+    const reset5hStr = formatCountdown(poolData.resetTime);
+    const full5hMeta = t('quota.usedAndLeft', {
+      reset: reset5hStr,
+      used: used5hVal.toFixed(1),
+      rem: rem5hVal.toFixed(1),
+    });
+    patchText(refs.metaReset5h, `${reset5hStr} · `);
+    patchText(refs.metaPrimary5h, t('quota.usedPrimary', { used: used5hVal.toFixed(1) }));
+    patchText(refs.metaExtra5h, t('quota.remExtra', { rem: rem5hVal.toFixed(1) }));
+    patchAttr(refs.meta5h, 'title', `5h (${poolLabel}) · ${full5hMeta}`);
+  } else {
+    patchText(refs.metaReset5h, '');
+    patchText(refs.metaPrimary5h, fallbackMetaText);
+    patchText(refs.metaExtra5h, '');
+    patchAttr(refs.meta5h, 'title', null);
+  }
   patchStyleVar(refs.fill5h, '--fill-w', `${Math.min(100, used5hVal)}%`);
   patchClasses(refs.fill5h, {
     'tone-warn': used5hVal >= 70 && used5hVal < 85,
@@ -243,16 +270,23 @@ export function syncPoolQuotaRow(refs, item, idx, rowEl) {
     patchText(refs.usageWk, '');
     patchAttr(refs.leftWk, 'title', null);
   }
-  patchText(
-    refs.metaWk,
-    hasWk
-      ? t('quota.usedAndLeft', {
-          reset: formatCountdown(wkResetRaw),
-          used: usedWkVal.toFixed(1),
-          rem: remWkVal.toFixed(1),
-        })
-      : fallbackMetaText
-  );
+  if (hasWk) {
+    const resetWkStr = formatCountdown(wkResetRaw);
+    const fullWkMeta = t('quota.usedAndLeft', {
+      reset: resetWkStr,
+      used: usedWkVal.toFixed(1),
+      rem: remWkVal.toFixed(1),
+    });
+    patchText(refs.metaResetWk, `${resetWkStr} · `);
+    patchText(refs.metaPrimaryWk, t('quota.usedPrimary', { used: usedWkVal.toFixed(1) }));
+    patchText(refs.metaExtraWk, t('quota.remExtra', { rem: remWkVal.toFixed(1) }));
+    patchAttr(refs.metaWk, 'title', `${customTitle} · ${fullWkMeta}`);
+  } else {
+    patchText(refs.metaResetWk, '');
+    patchText(refs.metaPrimaryWk, fallbackMetaText);
+    patchText(refs.metaExtraWk, '');
+    patchAttr(refs.metaWk, 'title', null);
+  }
   patchStyleVar(refs.fillWk, '--fill-w', `${Math.min(100, usedWkVal)}%`);
   patchClasses(refs.fillWk, {
     'tone-warn': usedWkVal >= 70 && usedWkVal < 85,
@@ -308,8 +342,8 @@ export const QuotaPoolsWidget = defineComponent({
       h(
         'div',
         compactHover
-          ? { className: 'panel-header wm-hover-quota-foot' }
-          : { className: 'panel-header', style: 'font-size: var(--fs-md); padding-top: 2px;' },
+          ? { className: 'panel-header wm-hover-quota-foot quota-card-foot' }
+          : { className: 'panel-header quota-card-foot', style: 'font-size: var(--fs-md); padding-top: 2px;' },
         [wkFootLeft, wkFootRight]
       ),
     ]);

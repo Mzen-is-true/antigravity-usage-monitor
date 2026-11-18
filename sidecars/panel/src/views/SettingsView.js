@@ -105,6 +105,7 @@ export const SettingsView = defineComponent({
       const settings = telemetry?.settings;
       if (settingsSubTab === 'structure') {
         if (settings) structureTab.refs.renderSettings(settings);
+        structureTab.refs.renderWindowBridgeStatus?.(telemetry?.windowBridge || null);
       } else if (settingsSubTab === 'other') {
         if (settings) otherTab.refs.renderSettings(settings, telemetry.contextWindowModels || []);
       } else if (accountTab && settingsSubTab === 'account') {
@@ -119,6 +120,7 @@ export const SettingsView = defineComponent({
     const unsubTelemetry = telemetryStore.subscribe(
       (st) => ({
         settings: st.telemetry?.settings,
+        windowBridge: st.telemetry?.windowBridge,
         cloudStatus: st.telemetry?.cloudStatus,
         contextWindowModels: st.telemetry?.contextWindowModels,
         account: st.telemetry?.account,

@@ -460,8 +460,8 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'fmt.resetUnknown': '未知重置时间',
   'fmt.resetSoon': '即将重置',
   'fmt.resetUnder1m': '<1分钟后重置',
-  'fmt.resetDaysHours': '{d}天 {h}小时后重置',
-  'fmt.resetHoursMins': '{h}小时 {m}分后重置',
+  'fmt.resetDaysHours': '{d}天{h}小时后重置',
+  'fmt.resetHoursMins': '{h}小时{m}分后重置',
   'fmt.resetMins': '{m}分钟后重置',
   'fmt.selectTime': '选择时间',
   'fmt.unknownModel': '模型未知',
@@ -584,6 +584,8 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'quota.loading': '读取中...',
   'quota.failed': '获取失败 (--%)',
   'quota.usedAndLeft': '{reset} · 已用 {used}% (余 {rem}%)',
+  'quota.usedPrimary': '已用 {used}%',
+  'quota.remExtra': ' (余 {rem}%)',
   'quota.cycle5hTitle': '当前 5h 周期累计 ({pool})：{tok} Tokens · {cost} · {calls} 次调用',
   'quota.cycleWkCustomTitle': '本周自然周累计：{tok} Tokens · {cost} · {calls} 次调用',
   'quota.cycleWkPoolTitle': '当前周限周期累计 ({pool})：{tok} Tokens · {cost} · {calls} 次调用',
@@ -894,6 +896,30 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'settings.str.mountDual': '双栖挂载 (顶部栏 + 侧边栏)',
   'settings.str.mountComposer': '输入框挂载 (输入框 + 侧边栏)',
   'settings.str.mountSidebar': '仅侧边栏',
+  'settings.str.cdpTitle': '顶栏调试通道与启动参数',
+  'settings.str.cdpStateMounted': '已挂载 ({count} 窗)',
+  'settings.str.cdpStateReadyRestart': '待重启生效',
+  'settings.str.cdpStateMissing': '未开启通道',
+  'settings.str.cdpDescMounted': '主窗口顶栏/输入框胶囊通信正常，已自动同步实时指标。',
+  'settings.str.cdpDescReadyRestart': '已为 {configured}/{total} 处快捷方式写入启动参数（并开启更新后自动守护）。请右键右下角托盘彻底退出 Antigravity，再通过快捷方式重开即可显示顶栏胶囊。',
+  'settings.str.cdpDescMissingWin': '客户端 v2.33+ 默认关闭了本地调试口，导致胶囊无法挂入主窗口顶栏。点击下方按钮可一键为快捷方式补齐启动参数（自动开启升级后防冲掉守护），随后退托盘重开即可恢复。',
+  'settings.str.cdpDescUpdatedWin': '检测到客户端刚完成自动升级并以无参方式拉起，顶栏胶囊暂时隐藏。点击一键补齐参数后，下次彻底退出托盘重开即可恢复。',
+  'settings.str.cdpDescNonWin': '当前系统需使用带调试参数命令启动客户端方可挂载顶栏胶囊：{cmd}',
+  'settings.str.cdpApplyBtn': '一键写入启动参数',
+  'settings.str.cdpApplyingBtn': '正在写入…',
+  'settings.str.cdpRecheckBtn': '重新检测',
+  'settings.str.cdpRestoreBtn': '恢复默认快捷方式',
+  'settings.str.cdpCopyCmdBtn': '复制启动命令',
+  'settings.str.cdpCopiedMsg': '启动命令已复制',
+  'settings.str.cdpAppliedMsg': '已写入 {count} 处快捷方式，彻底退出托盘重开即生效',
+  'settings.str.cdpRestoredMsg': '已恢复默认快捷方式参数',
+  'settings.str.cdpFailedMsg': '操作失败：{err}',
+  'overview.cdpBannerNeedApply': '顶栏胶囊未开启启动参数，当前仅在侧边栏显示',
+  'overview.cdpBannerNeedRestart': '启动参数已就绪：退出右下角托盘重开客户端即可显示顶栏胶囊',
+  'overview.cdpBannerApplyBtn': '一键开启',
+  'overview.cdpBannerApplying': '配置中…',
+  'overview.cdpBannerSettingsBtn': '详情',
+  'overview.cdpBannerDismissAria': '隐藏此提示',
   'settings.str.popoverWidthLabel': '悬浮面板宽度',
   'settings.str.popoverWidthAuto': '自适应',
   'settings.str.popoverWidthCustom': '指定宽度',
@@ -1155,6 +1181,8 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'quota.loading': 'Loading...',
   'quota.failed': 'Unavailable (--%)',
   'quota.usedAndLeft': '{reset} · Used {used}% ({rem}% left)',
+  'quota.usedPrimary': 'Used {used}%',
+  'quota.remExtra': ' ({rem}% left)',
   'quota.cycle5hTitle': 'Current 5h cycle ({pool}): {tok} Tokens · {cost} · {calls} calls',
   'quota.cycleWkCustomTitle': 'Current calendar week: {tok} Tokens · {cost} · {calls} calls',
   'quota.cycleWkPoolTitle': 'Current weekly cycle ({pool}): {tok} Tokens · {cost} · {calls} calls',
@@ -1465,6 +1493,30 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'settings.str.mountDual': 'Dual Mount (Titlebar + Sidebar)',
   'settings.str.mountComposer': 'Composer Mount (Input Box + Sidebar)',
   'settings.str.mountSidebar': 'Sidebar Only',
+  'settings.str.cdpTitle': 'Titlebar Debug Channel & Launch Args',
+  'settings.str.cdpStateMounted': 'Mounted ({count})',
+  'settings.str.cdpStateReadyRestart': 'Restart Needed',
+  'settings.str.cdpStateMissing': 'Channel Inactive',
+  'settings.str.cdpDescMounted': 'Window capsule bridge is connected and streaming live metrics.',
+  'settings.str.cdpDescReadyRestart': 'Launch flag configured on {configured}/{total} shortcuts (auto-guard enabled). Fully quit Antigravity from the system tray and relaunch via shortcut to show the topbar capsule.',
+  'settings.str.cdpDescMissingWin': 'Antigravity v2.33+ disables the local debug port by default. Click below to add --remote-debugging-port=0 to your shortcuts (with auto-guard across updates), then quit from tray and relaunch.',
+  'settings.str.cdpDescUpdatedWin': 'Antigravity was relaunched without debug flags after an auto-update. Click below to restore shortcut flags, then quit from tray and relaunch.',
+  'settings.str.cdpDescNonWin': 'Launch Antigravity with the remote debugging flag to enable the window capsule: {cmd}',
+  'settings.str.cdpApplyBtn': 'Configure Launch Flag',
+  'settings.str.cdpApplyingBtn': 'Configuring…',
+  'settings.str.cdpRecheckBtn': 'Re-check',
+  'settings.str.cdpRestoreBtn': 'Restore Default Shortcuts',
+  'settings.str.cdpCopyCmdBtn': 'Copy Launch Command',
+  'settings.str.cdpCopiedMsg': 'Launch command copied',
+  'settings.str.cdpAppliedMsg': 'Updated {count} shortcut(s); quit tray and relaunch to activate',
+  'settings.str.cdpRestoredMsg': 'Restored default shortcut arguments',
+  'settings.str.cdpFailedMsg': 'Action failed: {err}',
+  'overview.cdpBannerNeedApply': 'Topbar capsule needs launch flag (currently Sidebar Only)',
+  'overview.cdpBannerNeedRestart': 'Launch flag ready: quit system tray & relaunch to show topbar capsule',
+  'overview.cdpBannerApplyBtn': 'Enable Flag',
+  'overview.cdpBannerApplying': 'Applying…',
+  'overview.cdpBannerSettingsBtn': 'Details',
+  'overview.cdpBannerDismissAria': 'Dismiss notice',
   'settings.str.popoverWidthLabel': 'Popover Width',
   'settings.str.popoverWidthAuto': 'Auto Fit',
   'settings.str.popoverWidthCustom': 'Custom',
@@ -3246,6 +3298,9 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.enableCliStatusLine !== false) !== (nSet?.enableCliStatusLine !== false)) {
     return false;
   }
+  if (Boolean(pSet?.autoMaintainCdpShortcuts) !== Boolean(nSet?.autoMaintainCdpShortcuts)) {
+    return false;
+  }
   if ((pSet?.showTopbarMultiSession !== false) !== (nSet?.showTopbarMultiSession !== false)) {
     return false;
   }
@@ -3281,6 +3336,21 @@ function isEquivalentTelemetry(prev, next) {
     pCloud?.lastSyncError !== nCloud?.lastSyncError ||
     pCloud?.lastUpdateError !== nCloud?.lastUpdateError ||
     pCloud?.lastUpdateResult?.updatedAtMs !== nCloud?.lastUpdateResult?.updatedAtMs
+  ) {
+    return false;
+  }
+
+  const pWb = prev.windowBridge;
+  const nWb = next.windowBridge;
+  if (
+    pWb?.state !== nWb?.state ||
+    pWb?.enabled !== nWb?.enabled ||
+    pWb?.aliveCount !== nWb?.aliveCount ||
+    pWb?.targetCount !== nWb?.targetCount ||
+    pWb?.cdpSetup?.configuredShortcuts !== nWb?.cdpSetup?.configuredShortcuts ||
+    pWb?.cdpSetup?.totalShortcuts !== nWb?.cdpSetup?.totalShortcuts ||
+    pWb?.cdpSetup?.needsColdRestart !== nWb?.cdpSetup?.needsColdRestart ||
+    pWb?.cdpSetup?.launchedByUpdater !== nWb?.cdpSetup?.launchedByUpdater
   ) {
     return false;
   }
@@ -4037,6 +4107,15 @@ async function rebuildTrajectoryCache() {
 
 async function triggerCloudSync() {
   const res = await callSidecarApi('/api/cloud-sync', { method: 'POST', body: {} });
+  await fetchTelemetry({ force: true });
+  return res;
+}
+
+async function triggerHostCdpSetup(action = 'apply', extra = {}) {
+  const res = await callSidecarApi('/api/cdp-setup', {
+    method: 'POST',
+    body: { action, ...(extra && typeof extra === 'object' ? extra : {}) },
+  });
   await fetchTelemetry({ force: true });
   return res;
 }
@@ -9971,9 +10050,16 @@ function createPoolQuotaRow() {
   const title5h = h('span', { className: 'quota-win-title', text: '5h' });
   const usage5h = h('span', { className: 'quota-win-usage', hidden: true, text: '' });
   const left5h = h('span', { className: 'quota-win-left' }, [title5h, usage5h]);
-  const meta5h = h('span', { className: 'panel-meta quota-win-meta text-mono', text: '--' });
+  const metaReset5h = h('span', { className: 'quota-meta-reset', text: '' });
+  const metaPrimary5h = h('span', { className: 'quota-meta-primary', text: '--' });
+  const metaExtra5h = h('span', { className: 'quota-meta-extra', text: '' });
+  const meta5h = h('span', { className: 'panel-meta quota-win-meta text-mono' }, [
+    metaReset5h,
+    metaPrimary5h,
+    metaExtra5h,
+  ]);
   const fill5h = h('div', { className: 'progress-fill' });
-  const row5h = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' }, [
+  const row5h = h('div', { style: 'display: flex; flex-direction: column; gap: 4px; min-width: 0;' }, [
     h('div', { className: 'panel-header quota-win-head' }, [left5h, meta5h]),
     h('div', { className: 'progress-track' }, [fill5h]),
   ]);
@@ -9981,14 +10067,21 @@ function createPoolQuotaRow() {
   const titleWk = h('span', { className: 'quota-win-title', text: t('quota.weeklyShort') });
   const usageWk = h('span', { className: 'quota-win-usage', hidden: true, text: '' });
   const leftWk = h('span', { className: 'quota-win-left' }, [titleWk, usageWk]);
-  const metaWk = h('span', { className: 'panel-meta quota-win-meta text-mono', text: '--' });
+  const metaResetWk = h('span', { className: 'quota-meta-reset', text: '' });
+  const metaPrimaryWk = h('span', { className: 'quota-meta-primary', text: '--' });
+  const metaExtraWk = h('span', { className: 'quota-meta-extra', text: '' });
+  const metaWk = h('span', { className: 'panel-meta quota-win-meta text-mono' }, [
+    metaResetWk,
+    metaPrimaryWk,
+    metaExtraWk,
+  ]);
   const fillWk = h('div', { className: 'progress-fill' });
-  const rowWk = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' }, [
+  const rowWk = h('div', { style: 'display: flex; flex-direction: column; gap: 4px; min-width: 0;' }, [
     h('div', { className: 'panel-header quota-win-head' }, [leftWk, metaWk]),
     h('div', { className: 'progress-track' }, [fillWk]),
   ]);
 
-  const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, [
+  const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px; min-width: 0;' }, [
     row5h,
     rowWk,
   ]);
@@ -10001,12 +10094,18 @@ function createPoolQuotaRow() {
       title5h,
       usage5h,
       meta5h,
+      metaReset5h,
+      metaPrimary5h,
+      metaExtra5h,
       fill5h,
       rowWk,
       leftWk,
       titleWk,
       usageWk,
       metaWk,
+      metaResetWk,
+      metaPrimaryWk,
+      metaExtraWk,
       fillWk,
     },
   };
@@ -10096,16 +10195,23 @@ function syncPoolQuotaRow(refs, item, idx, rowEl) {
     patchText(refs.usage5h, '');
     patchAttr(refs.left5h, 'title', null);
   }
-  patchText(
-    refs.meta5h,
-    has5h
-      ? t('quota.usedAndLeft', {
-          reset: formatCountdown(poolData.resetTime),
-          used: used5hVal.toFixed(1),
-          rem: rem5hVal.toFixed(1),
-        })
-      : fallbackMetaText
-  );
+  if (has5h) {
+    const reset5hStr = formatCountdown(poolData.resetTime);
+    const full5hMeta = t('quota.usedAndLeft', {
+      reset: reset5hStr,
+      used: used5hVal.toFixed(1),
+      rem: rem5hVal.toFixed(1),
+    });
+    patchText(refs.metaReset5h, `${reset5hStr} · `);
+    patchText(refs.metaPrimary5h, t('quota.usedPrimary', { used: used5hVal.toFixed(1) }));
+    patchText(refs.metaExtra5h, t('quota.remExtra', { rem: rem5hVal.toFixed(1) }));
+    patchAttr(refs.meta5h, 'title', `5h (${poolLabel}) · ${full5hMeta}`);
+  } else {
+    patchText(refs.metaReset5h, '');
+    patchText(refs.metaPrimary5h, fallbackMetaText);
+    patchText(refs.metaExtra5h, '');
+    patchAttr(refs.meta5h, 'title', null);
+  }
   patchStyleVar(refs.fill5h, '--fill-w', `${Math.min(100, used5hVal)}%`);
   patchClasses(refs.fill5h, {
     'tone-warn': used5hVal >= 70 && used5hVal < 85,
@@ -10143,16 +10249,23 @@ function syncPoolQuotaRow(refs, item, idx, rowEl) {
     patchText(refs.usageWk, '');
     patchAttr(refs.leftWk, 'title', null);
   }
-  patchText(
-    refs.metaWk,
-    hasWk
-      ? t('quota.usedAndLeft', {
-          reset: formatCountdown(wkResetRaw),
-          used: usedWkVal.toFixed(1),
-          rem: remWkVal.toFixed(1),
-        })
-      : fallbackMetaText
-  );
+  if (hasWk) {
+    const resetWkStr = formatCountdown(wkResetRaw);
+    const fullWkMeta = t('quota.usedAndLeft', {
+      reset: resetWkStr,
+      used: usedWkVal.toFixed(1),
+      rem: remWkVal.toFixed(1),
+    });
+    patchText(refs.metaResetWk, `${resetWkStr} · `);
+    patchText(refs.metaPrimaryWk, t('quota.usedPrimary', { used: usedWkVal.toFixed(1) }));
+    patchText(refs.metaExtraWk, t('quota.remExtra', { rem: remWkVal.toFixed(1) }));
+    patchAttr(refs.metaWk, 'title', `${customTitle} · ${fullWkMeta}`);
+  } else {
+    patchText(refs.metaResetWk, '');
+    patchText(refs.metaPrimaryWk, fallbackMetaText);
+    patchText(refs.metaExtraWk, '');
+    patchAttr(refs.metaWk, 'title', null);
+  }
   patchStyleVar(refs.fillWk, '--fill-w', `${Math.min(100, usedWkVal)}%`);
   patchClasses(refs.fillWk, {
     'tone-warn': usedWkVal >= 70 && usedWkVal < 85,
@@ -10208,8 +10321,8 @@ const QuotaPoolsWidget = defineComponent({
       h(
         'div',
         compactHover
-          ? { className: 'panel-header wm-hover-quota-foot' }
-          : { className: 'panel-header', style: 'font-size: var(--fs-md); padding-top: 2px;' },
+          ? { className: 'panel-header wm-hover-quota-foot quota-card-foot' }
+          : { className: 'panel-header quota-card-foot', style: 'font-size: var(--fs-md); padding-top: 2px;' },
         [wkFootLeft, wkFootRight]
       ),
     ]);
@@ -10355,11 +10468,16 @@ function syncUsedPoolQuotaRow(refs, item, idx, rowEl) {
         : costUsd;
 
     patchText(refs.title5h, t('usedQuota.win5hTitle', { pool: poolLabel }));
+    patchText(refs.metaReset5h, '');
     patchText(
-      refs.meta5h,
+      refs.metaPrimary5h,
       hasWk
         ? `${pctText5h} · ${formatTokens(tok5h)} (${formatUsd(cost5h)})`
-        : `${pctText5h} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+        : `${pctText5h} · ${formatTokens(totalTok)} (${formatUsd(costUsd)})`
+    );
+    patchText(
+      refs.metaExtra5h,
+      hasWk ? '' : ` · ${t('usedQuota.callsInline', { calls })}`
     );
     const bar5hPct = hasPct5h && pct5hVal > 0 ? Math.min(100, Math.max(1.2, pct5hVal)) : 0;
     patchStyleVar(refs.fill5h, '--fill-w', `${bar5hPct}%`);
@@ -10384,10 +10502,12 @@ function syncUsedPoolQuotaRow(refs, item, idx, rowEl) {
         ? t('usedQuota.winFallbackTitle', { pool: poolLabel })
         : t('usedQuota.winWkTitle', { pool: poolLabel })
     );
+    patchText(refs.metaResetWk, '');
     patchText(
-      refs.metaWk,
-      `${pctTextWk} · ${formatTokens(totalTok)} (${formatUsd(costUsd)}) · ${t('usedQuota.callsInline', { calls })}`
+      refs.metaPrimaryWk,
+      `${pctTextWk} · ${formatTokens(totalTok)} (${formatUsd(costUsd)})`
     );
+    patchText(refs.metaExtraWk, ` · ${t('usedQuota.callsInline', { calls })}`);
     const barWkPct = hasPctWk && pctWkVal > 0 ? Math.min(100, Math.max(1.2, pctWkVal)) : 0;
     patchStyleVar(refs.fillWk, '--fill-w', `${barWkPct}%`);
     patchClasses(refs.fillWk, {
@@ -10444,8 +10564,8 @@ const SessionUsedQuotaWidget = defineComponent({
       h(
         'div',
         compactHover
-          ? { className: 'panel-header wm-hover-quota-foot' }
-          : { className: 'panel-header', style: 'font-size: var(--fs-md); padding-top: 2px;' },
+          ? { className: 'panel-header wm-hover-quota-foot quota-card-foot' }
+          : { className: 'panel-header quota-card-foot', style: 'font-size: var(--fs-md); padding-top: 2px;' },
         [usedFootLeft, usedFootRight]
       ),
     ]);
@@ -14109,6 +14229,9 @@ const SettingsStructureTab = defineComponent({
     let rawStepTokenComboText = DEFAULT_CLIENT_STEP_TOKEN_COMBO_FORMAT;
     let draftStepColumns = [...DEFAULT_CLIENT_STEP_COLUMNS];
     let latestSettings = null;
+    let latestWindowBridge = null;
+    let cdpBusyAction = '';
+    let cdpFeedbackTimer = null;
 
     function isStructureVisible() {
       const st = uiStore.getState();
@@ -14226,6 +14349,7 @@ const SettingsStructureTab = defineComponent({
         const nextMode = normalizeClientWindowMountMode(val);
         draftWindowMountMode = nextMode;
         syncMountSectionMeta();
+        syncCdpSetupCard();
         props.onLayoutChange?.();
         void persistStructurePatch(mountSection, {
           windowMountMode: nextMode,
@@ -14233,6 +14357,262 @@ const SettingsStructureTab = defineComponent({
         });
       },
     });
+
+    const cdpTitleEl = h('span', {
+      className: 'cdp-setup-title',
+      text: t('settings.str.cdpTitle'),
+    });
+    const cdpBadgeEl = h('span', {
+      className: 'status-tag cdp-setup-badge',
+      text: t('settings.str.cdpStateMissing'),
+    });
+    const cdpDescEl = h('p', {
+      className: 'cdp-setup-desc',
+      text: '',
+    });
+    const cdpFeedbackEl = h('span', {
+      className: 'cdp-setup-feedback text-muted',
+      hidden: true,
+      text: '',
+    });
+
+    function showCdpFeedback(msg, autoClearMs = 4500) {
+      if (cdpFeedbackTimer) {
+        clearTimeout(cdpFeedbackTimer);
+        cdpFeedbackTimer = null;
+      }
+      patchAttr(cdpFeedbackEl, 'hidden', !msg);
+      patchText(cdpFeedbackEl, msg || '');
+      if (msg && autoClearMs > 0) {
+        cdpFeedbackTimer = setTimeout(() => {
+          cdpFeedbackTimer = null;
+          patchAttr(cdpFeedbackEl, 'hidden', true);
+          patchText(cdpFeedbackEl, '');
+        }, autoClearMs);
+      }
+    }
+
+    const cdpApplyBtnText = h('span', { text: t('settings.str.cdpApplyBtn') });
+    const cdpApplyBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-primary cdp-action-btn',
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'apply';
+          syncCdpSetupCard();
+          try {
+            const res = await triggerHostCdpSetup('apply');
+            if (res?.ok) {
+              showCdpFeedback(
+                t('settings.str.cdpAppliedMsg', {
+                  count: Number(res.configuredShortcuts || res.updatedShortcuts || 1),
+                }),
+                6000
+              );
+            } else {
+              showCdpFeedback(
+                t('settings.str.cdpFailedMsg', { err: res?.error || 'unknown' }),
+                5000
+              );
+            }
+          } catch (err) {
+            showCdpFeedback(
+              t('settings.str.cdpFailedMsg', { err: err?.message || 'error' }),
+              5000
+            );
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [createSvgIcon('bolt', { size: 12 }), cdpApplyBtnText]
+    );
+
+    const cdpRecheckBtnText = h('span', { text: t('settings.str.cdpRecheckBtn') });
+    const cdpRecheckBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'check';
+          syncCdpSetupCard();
+          try {
+            await triggerHostCdpSetup('check');
+          } catch {
+            // ignore transient check error
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [createSvgIcon('refresh', { size: 12 }), cdpRecheckBtnText]
+    );
+
+    const cdpRestoreBtnText = h('span', { text: t('settings.str.cdpRestoreBtn') });
+    const cdpRestoreBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        hidden: true,
+        onClick: async () => {
+          if (cdpBusyAction) return;
+          cdpBusyAction = 'restore';
+          syncCdpSetupCard();
+          try {
+            const res = await triggerHostCdpSetup('restore');
+            if (res?.ok) {
+              showCdpFeedback(t('settings.str.cdpRestoredMsg'), 4500);
+            } else {
+              showCdpFeedback(
+                t('settings.str.cdpFailedMsg', { err: res?.error || 'unknown' }),
+                5000
+              );
+            }
+          } catch (err) {
+            showCdpFeedback(
+              t('settings.str.cdpFailedMsg', { err: err?.message || 'error' }),
+              5000
+            );
+          } finally {
+            cdpBusyAction = '';
+            syncCdpSetupCard();
+            props.onLayoutChange?.();
+          }
+        },
+      },
+      [cdpRestoreBtnText]
+    );
+
+    const cdpCopyCmdBtnText = h('span', { text: t('settings.str.cdpCopyCmdBtn') });
+    const cdpCopyCmdBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'btn-secondary cdp-action-btn',
+        hidden: true,
+        onClick: async () => {
+          const cmd = String(latestWindowBridge?.cdpSetup?.manualLaunchCommand || '').trim();
+          if (!cmd) return;
+          try {
+            await navigator?.clipboard?.writeText?.(cmd);
+            showCdpFeedback(t('settings.str.cdpCopiedMsg'), 3000);
+          } catch {
+            showCdpFeedback(cmd, 6000);
+          }
+        },
+      },
+      [cdpCopyCmdBtnText]
+    );
+
+    const cdpSetupBox = h('div', { className: 'cdp-setup-box', hidden: true }, [
+      h('div', { className: 'cdp-setup-head' }, [cdpTitleEl, cdpBadgeEl]),
+      cdpDescEl,
+      h('div', { className: 'cdp-setup-actions' }, [
+        cdpApplyBtn,
+        cdpCopyCmdBtn,
+        cdpRecheckBtn,
+        cdpRestoreBtn,
+      ]),
+      cdpFeedbackEl,
+    ]);
+
+    function syncCdpSetupCard() {
+      const wb = latestWindowBridge;
+      const isStandalone =
+        typeof document !== 'undefined' &&
+        document?.documentElement?.dataset?.standalone === 'true';
+      const showBox =
+        Boolean(wb) &&
+        !isStandalone &&
+        draftWindowMountMode !== 'sidebar' &&
+        (wb.state === 'mounted' ||
+          wb.state === 'no_devtools_port' ||
+          wb.state === 'cdp_unreachable');
+      patchAttr(cdpSetupBox, 'hidden', !showBox);
+      if (!showBox) return;
+
+      patchText(cdpTitleEl, t('settings.str.cdpTitle'));
+      patchText(cdpRecheckBtnText, t('settings.str.cdpRecheckBtn'));
+      patchText(cdpRestoreBtnText, t('settings.str.cdpRestoreBtn'));
+      patchText(cdpCopyCmdBtnText, t('settings.str.cdpCopyCmdBtn'));
+
+      const isMounted = wb.state === 'mounted';
+      const setup = wb.cdpSetup || null;
+      const isWinSupported = setup ? setup.supported !== false : true;
+      const readyRestart = !isMounted && Boolean(setup?.shortcutsConfigured);
+      const canRestore = Boolean(setup?.hasBackup || Number(setup?.configuredShortcuts || 0) > 0);
+
+      patchClasses(cdpSetupBox, {
+        'is-mounted': isMounted,
+        'is-warn': !isMounted,
+      });
+      patchClasses(cdpBadgeEl, {
+        'state-warn': !isMounted,
+        'state-synced': readyRestart,
+      });
+
+      if (isMounted) {
+        patchText(
+          cdpBadgeEl,
+          t('settings.str.cdpStateMounted', { count: Math.max(1, Number(wb.aliveCount || 1)) })
+        );
+        patchText(cdpDescEl, t('settings.str.cdpDescMounted'));
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', true);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      } else if (!isWinSupported) {
+        const cmd = setup?.manualLaunchCommand || 'antigravity --remote-debugging-port=0';
+        patchText(cdpBadgeEl, t('settings.str.cdpStateMissing'));
+        patchText(cdpDescEl, t('settings.str.cdpDescNonWin', { cmd }));
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', false);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', true);
+      } else if (readyRestart) {
+        patchText(cdpBadgeEl, t('settings.str.cdpStateReadyRestart'));
+        patchText(
+          cdpDescEl,
+          t('settings.str.cdpDescReadyRestart', {
+            configured: Number(setup?.configuredShortcuts || 0),
+            total: Number(setup?.totalShortcuts || 0),
+          })
+        );
+        patchAttr(cdpApplyBtn, 'hidden', true);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      } else {
+        patchText(cdpBadgeEl, t('settings.str.cdpStateMissing'));
+        patchText(
+          cdpDescEl,
+          setup?.launchedByUpdater
+            ? t('settings.str.cdpDescUpdatedWin')
+            : t('settings.str.cdpDescMissingWin')
+        );
+        patchAttr(cdpApplyBtn, 'hidden', false);
+        patchAttr(cdpCopyCmdBtn, 'hidden', true);
+        patchAttr(cdpRecheckBtn, 'hidden', false);
+        patchAttr(cdpRestoreBtn, 'hidden', !canRestore);
+      }
+
+      patchText(
+        cdpApplyBtnText,
+        cdpBusyAction === 'apply' ? t('settings.str.cdpApplyingBtn') : t('settings.str.cdpApplyBtn')
+      );
+      patchAttr(cdpApplyBtn, 'disabled', Boolean(cdpBusyAction));
+      patchAttr(cdpRecheckBtn, 'disabled', Boolean(cdpBusyAction));
+      patchAttr(cdpRestoreBtn, 'disabled', Boolean(cdpBusyAction));
+    }
 
     const popoverWidthStepper = CustomNumberInput({
       modelValue: draftPopoverWidth,
@@ -14352,6 +14732,7 @@ const SettingsStructureTab = defineComponent({
         mountPreviewCanvas,
         h('div', { className: 'settings-divider' }),
         h('div', { className: 'form-row' }, [mountModeLabelEl, windowMountSelect.el]),
+        cdpSetupBox,
         h('div', { className: 'form-row' }, [
           h('div', { className: 'settings-inline-row' }, [
             popoverWidthLabelEl,
@@ -14998,6 +15379,7 @@ const SettingsStructureTab = defineComponent({
       draftStepColumns = normalizeClientStepColumns(settings.stepTableColumns);
 
       syncMountSectionMeta();
+      syncCdpSetupCard();
       syncHoverSectionMeta();
       syncOverviewSectionMeta();
       syncStepsSectionMeta();
@@ -15041,6 +15423,7 @@ const SettingsStructureTab = defineComponent({
       patchText(stepColsLabelEl, t('settings.str.stepsColsLabel'));
 
       syncMountSectionMeta();
+      syncCdpSetupCard();
       syncHoverSectionMeta();
       syncOverviewSectionMeta();
       syncStepsSectionMeta();
@@ -15075,7 +15458,13 @@ const SettingsStructureTab = defineComponent({
     syncStepsSectionMeta();
     applyActiveThirdTab(activeThirdTab);
 
+    function renderWindowBridgeStatus(wb) {
+      latestWindowBridge = wb || null;
+      syncCdpSetupCard();
+    }
+
     onCleanup(() => {
+      if (cdpFeedbackTimer) clearTimeout(cdpFeedbackTimer);
       unsubUi();
       capsulePreviewWidget.destroy();
       hoverPreviewHost.destroy();
@@ -15124,6 +15513,7 @@ const SettingsStructureTab = defineComponent({
         overviewSection,
         stepsSection,
         renderSettings,
+        renderWindowBridgeStatus,
         refreshLabels,
       },
     };
@@ -16226,9 +16616,84 @@ const TopSessionHeader = defineComponent({
 const LiveOverviewView = defineComponent({
   name: 'LiveOverviewView',
   setup({ onCleanup }) {
+    let bannerDismissed = false;
+    let bannerApplying = false;
+
+    const cdpBannerTextEl = h('span', {
+      className: 'cdp-banner-text',
+      text: t('overview.cdpBannerNeedApply'),
+    });
+    const cdpBannerApplyBtn = h('button', {
+      type: 'button',
+      className: 'cdp-banner-btn is-primary',
+      text: t('overview.cdpBannerApplyBtn'),
+      onClick: async () => {
+        if (bannerApplying) return;
+        bannerApplying = true;
+        patchAttr(cdpBannerApplyBtn, 'disabled', true);
+        patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplying'));
+        try {
+          await triggerHostCdpSetup('apply');
+        } catch {
+          // 交由下次轮询或设置页详细提示反馈
+        } finally {
+          bannerApplying = false;
+          patchAttr(cdpBannerApplyBtn, 'disabled', false);
+          patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplyBtn'));
+        }
+      },
+    });
+    const cdpBannerSettingsBtn = h('button', {
+      type: 'button',
+      className: 'cdp-banner-btn',
+      text: t('overview.cdpBannerSettingsBtn'),
+      onClick: () => {
+        uiStore.setState({
+          activeView: 'settings',
+          settingsSubTab: 'structure',
+          settingsStructureTab: 'mount',
+        });
+      },
+    });
+    const cdpBannerDismissBtn = h(
+      'button',
+      {
+        type: 'button',
+        className: 'cdp-banner-dismiss',
+        'aria-label': t('overview.cdpBannerDismissAria'),
+        title: t('overview.cdpBannerDismissAria'),
+        onClick: () => {
+          bannerDismissed = true;
+          patchAttr(cdpBannerEl, 'hidden', true);
+          viewScrollbar.refresh();
+        },
+      },
+      [createSvgIcon('close', { size: 11 })]
+    );
+    const cdpBannerEl = h(
+      'div',
+      { className: 'cdp-inline-banner', hidden: true },
+      [
+        h('span', { className: 'cdp-banner-main' }, [
+          createSvgIcon('dock', { size: 12 }),
+          cdpBannerTextEl,
+        ]),
+        h('span', { className: 'cdp-banner-actions' }, [
+          cdpBannerApplyBtn,
+          cdpBannerSettingsBtn,
+          cdpBannerDismissBtn,
+        ]),
+      ]
+    );
+
     const overviewInner = h('div', {
       className: 'overview-modules-host',
     });
+
+    const overviewStack = h('div', { className: 'overview-scroll-stack' }, [
+      cdpBannerEl,
+      overviewInner,
+    ]);
 
     const widgetHost = createDynamicWidgetHost({
       containerEl: overviewInner,
@@ -16238,7 +16703,7 @@ const LiveOverviewView = defineComponent({
     });
 
     const viewScrollbar = CustomScrollbar({
-      contentEl: overviewInner,
+      contentEl: overviewStack,
       className: 'view-pane',
     });
 
@@ -16267,8 +16732,44 @@ const LiveOverviewView = defineComponent({
       }
     }
 
+    function syncCdpBanner(data) {
+      const isStandalone =
+        typeof document !== 'undefined' &&
+        document?.documentElement?.dataset?.standalone === 'true';
+      const mountMode = normalizeClientWindowMountMode(
+        data?.settings?.windowMountMode,
+        data?.settings?.enableWindowOverlay
+      );
+      const wb = data?.windowBridge;
+      const shouldShow =
+        !bannerDismissed &&
+        !isWindowOverlayMode() &&
+        !isStandalone &&
+        mountMode !== 'sidebar' &&
+        wb &&
+        wb.state === 'no_devtools_port';
+      patchAttr(cdpBannerEl, 'hidden', !shouldShow);
+      if (!shouldShow) return;
+
+      const readyRestart = Boolean(wb.cdpSetup?.shortcutsConfigured);
+      patchClasses(cdpBannerEl, { 'is-ready': readyRestart });
+      patchText(
+        cdpBannerTextEl,
+        readyRestart ? t('overview.cdpBannerNeedRestart') : t('overview.cdpBannerNeedApply')
+      );
+      const showQuickApply = !readyRestart && wb.cdpSetup?.supported !== false;
+      patchAttr(cdpBannerApplyBtn, 'hidden', !showQuickApply);
+      if (!bannerApplying) {
+        patchText(cdpBannerApplyBtn, t('overview.cdpBannerApplyBtn'));
+      }
+      patchText(cdpBannerSettingsBtn, t('overview.cdpBannerSettingsBtn'));
+      patchAttr(cdpBannerDismissBtn, 'aria-label', t('overview.cdpBannerDismissAria'));
+      patchAttr(cdpBannerDismissBtn, 'title', t('overview.cdpBannerDismissAria'));
+    }
+
     function renderData(data) {
       if (!data) return;
+      syncCdpBanner(data);
       const moduleKeys = normalizeClientOverviewModules(data.settings?.overviewModules);
       const minuteTick = Math.floor(Date.now() / 30000);
       widgetHost.update({
@@ -18693,6 +19194,7 @@ const SettingsView = defineComponent({
       const settings = telemetry?.settings;
       if (settingsSubTab === 'structure') {
         if (settings) structureTab.refs.renderSettings(settings);
+        structureTab.refs.renderWindowBridgeStatus?.(telemetry?.windowBridge || null);
       } else if (settingsSubTab === 'other') {
         if (settings) otherTab.refs.renderSettings(settings, telemetry.contextWindowModels || []);
       } else if (accountTab && settingsSubTab === 'account') {
@@ -18707,6 +19209,7 @@ const SettingsView = defineComponent({
     const unsubTelemetry = telemetryStore.subscribe(
       (st) => ({
         settings: st.telemetry?.settings,
+        windowBridge: st.telemetry?.windowBridge,
         cloudStatus: st.telemetry?.cloudStatus,
         contextWindowModels: st.telemetry?.contextWindowModels,
         account: st.telemetry?.account,

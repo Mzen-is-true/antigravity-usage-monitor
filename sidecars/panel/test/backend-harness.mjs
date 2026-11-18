@@ -35,8 +35,9 @@ const BACKEND_MODULE_FILES = [
   '../backend/local-scanner.mjs',
   '../backend/usage-aggregator.mjs',
   '../backend/quota-ledger.mjs',
-  '../backend/telemetry-builder.mjs',
+  '../backend/host-cdp-config.mjs',
   '../backend/window-bridge.mjs',
+  '../backend/telemetry-builder.mjs',
   '../backend/api-actions.mjs',
   '../main.mjs',
 ];
@@ -103,6 +104,7 @@ export function backendHarness({
       if (norm.endsWith('pricing-catalog.json')) return Boolean(state.localCatalog);
       if (norm.endsWith('remote_pricing_cache.json')) return Boolean(state.remoteCatalog);
       if (norm.endsWith('session_quota_ledger.json')) return Boolean(state.sessionQuotaLedger);
+      if (norm.endsWith('cdp-shortcut-backup.json')) return Boolean(state.cdpShortcutBackup);
       if (norm.endsWith('plugin.json')) return Boolean(state.pluginManifest);
       if (norm.endsWith('/.system_generated/logs/transcript.jsonl')) {
         const m = norm.match(/\/brain\/([^/]+)\/\.system_generated\/logs\/transcript\.jsonl$/i);
@@ -146,6 +148,7 @@ export function backendHarness({
       if (norm.endsWith('pricing-catalog.json')) return JSON.stringify(state.localCatalog);
       if (norm.endsWith('remote_pricing_cache.json')) return JSON.stringify(state.remoteCatalog);
       if (norm.endsWith('session_quota_ledger.json')) return JSON.stringify(state.sessionQuotaLedger);
+      if (norm.endsWith('cdp-shortcut-backup.json')) return JSON.stringify(state.cdpShortcutBackup);
       if (norm.endsWith('plugin.json')) return JSON.stringify(state.pluginManifest);
       if (norm.endsWith('/.git/config')) return String(state.gitConfigText || '');
       return JSON.stringify(cache);
@@ -162,6 +165,9 @@ export function backendHarness({
       }
       if (norm.endsWith('session_quota_ledger.json')) {
         state.sessionQuotaLedger = parsed;
+      }
+      if (norm.endsWith('cdp-shortcut-backup.json')) {
+        state.cdpShortcutBackup = parsed;
       }
     },
     writeTrajectoryCacheFile:(p,data)=>{
@@ -190,6 +196,6 @@ export function backendHarness({
       return {ok:true,json:async()=>data};
     },
   };
-  vm.runInNewContext(source+'\n globalThis.api={buildTelemetryPayloadInternal,executeTelemetryAction,computeStepCost,resolveModelInfo,resolvePricingAt,inferFamilyFromProviderOrKey,isArgonModelIdentifier,isCarbonModelIdentifier,getBaseModelLabel,formatUpstreamModelId,PLACEHOLDER_MAP,normalizeQuotaFraction,classifyOfficialBucketWindow,classifyQuotaPoolIdentity,buildOfficialQuotaPools,POOL_PRIORITY_ORDER,resolveStepQuotaPoolKey,collectAccountConversationEntries,updateLedgerAndBuildSessionUsedQuota,resetSessionQuotaLedgerCache,resolveTimeWindow,sanitizeCatalogPayload,rebuildActiveCatalog,getPricingPhaseEpoch,detectCustomGitForkRepo,persistTrajectoryCacheIfNeeded,flushTrajectoryCacheNow,getCachedTrajectory,listCachedTrajectoryEntries,hasPendingTrajectoryCacheSave,syncCloudCatalog,getCloudStatus,isValidSemver,compareSemver,performPluginUpdate,resolveMigratedGitRemoteUrl,loadSettings,executeSettingsAction,executeModelContextWindowAction,executeResetSettingsAction,executeRebuildCacheAction,clearRuntimeCaches,normalizeTopbarCapsuleSlots,normalizeHoverModules,normalizeOverviewModules,normalizeOverviewMetrics,normalizeStepTableColumns,normalizeStepTokenComboFormat,parseStepTokenComboSegments,normalizeModelDisplayMode,normalizePopoverWidthMode,normalizePopoverWidth,normalizeStandalonePort,setStandalonePortListener,parseAnnotationPbtxtTitle,readLocalSummarySnapshot,readLocalSqliteTrajectory,computeSqliteWalSig,buildCliStatusSnapshot,buildCliStatusLineCommand,isManagedCliStatusLineCommand,applyCliStatusLineToSettingsObject,cliDisplayWidth,parseCliModelAndEffort,formatCliStatusLineCapsule};',ctx);
+  vm.runInNewContext(source+'\n globalThis.api={buildTelemetryPayloadInternal,executeTelemetryAction,computeStepCost,resolveModelInfo,resolvePricingAt,inferFamilyFromProviderOrKey,isArgonModelIdentifier,isCarbonModelIdentifier,getBaseModelLabel,formatUpstreamModelId,PLACEHOLDER_MAP,normalizeQuotaFraction,classifyOfficialBucketWindow,classifyQuotaPoolIdentity,buildOfficialQuotaPools,POOL_PRIORITY_ORDER,resolveStepQuotaPoolKey,collectAccountConversationEntries,updateLedgerAndBuildSessionUsedQuota,resetSessionQuotaLedgerCache,inspectHostCdpSetup,applyHostCdpSetup,restoreHostCdpSetup,resetHostCdpCache,executeCdpSetupAction,getWindowBridgeStatusSnapshot,resolveTimeWindow,sanitizeCatalogPayload,rebuildActiveCatalog,getPricingPhaseEpoch,detectCustomGitForkRepo,persistTrajectoryCacheIfNeeded,flushTrajectoryCacheNow,getCachedTrajectory,listCachedTrajectoryEntries,hasPendingTrajectoryCacheSave,syncCloudCatalog,getCloudStatus,isValidSemver,compareSemver,performPluginUpdate,resolveMigratedGitRemoteUrl,loadSettings,executeSettingsAction,executeModelContextWindowAction,executeResetSettingsAction,executeRebuildCacheAction,clearRuntimeCaches,normalizeTopbarCapsuleSlots,normalizeHoverModules,normalizeOverviewModules,normalizeOverviewMetrics,normalizeStepTableColumns,normalizeStepTokenComboFormat,parseStepTokenComboSegments,normalizeModelDisplayMode,normalizePopoverWidthMode,normalizePopoverWidth,normalizeStandalonePort,setStandalonePortListener,parseAnnotationPbtxtTitle,readLocalSummarySnapshot,readLocalSqliteTrajectory,computeSqliteWalSig,buildCliStatusSnapshot,buildCliStatusLineCommand,isManagedCliStatusLineCommand,applyCliStatusLineToSettingsObject,cliDisplayWidth,parseCliModelAndEffort,formatCliStatusLineCapsule};',ctx);
   return {...ctx.api,state};
 }

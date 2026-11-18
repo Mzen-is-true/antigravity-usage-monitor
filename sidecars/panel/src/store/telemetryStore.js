@@ -473,6 +473,9 @@ function isEquivalentTelemetry(prev, next) {
   if ((pSet?.enableCliStatusLine !== false) !== (nSet?.enableCliStatusLine !== false)) {
     return false;
   }
+  if (Boolean(pSet?.autoMaintainCdpShortcuts) !== Boolean(nSet?.autoMaintainCdpShortcuts)) {
+    return false;
+  }
   if ((pSet?.showTopbarMultiSession !== false) !== (nSet?.showTopbarMultiSession !== false)) {
     return false;
   }
@@ -508,6 +511,21 @@ function isEquivalentTelemetry(prev, next) {
     pCloud?.lastSyncError !== nCloud?.lastSyncError ||
     pCloud?.lastUpdateError !== nCloud?.lastUpdateError ||
     pCloud?.lastUpdateResult?.updatedAtMs !== nCloud?.lastUpdateResult?.updatedAtMs
+  ) {
+    return false;
+  }
+
+  const pWb = prev.windowBridge;
+  const nWb = next.windowBridge;
+  if (
+    pWb?.state !== nWb?.state ||
+    pWb?.enabled !== nWb?.enabled ||
+    pWb?.aliveCount !== nWb?.aliveCount ||
+    pWb?.targetCount !== nWb?.targetCount ||
+    pWb?.cdpSetup?.configuredShortcuts !== nWb?.cdpSetup?.configuredShortcuts ||
+    pWb?.cdpSetup?.totalShortcuts !== nWb?.cdpSetup?.totalShortcuts ||
+    pWb?.cdpSetup?.needsColdRestart !== nWb?.cdpSetup?.needsColdRestart ||
+    pWb?.cdpSetup?.launchedByUpdater !== nWb?.cdpSetup?.launchedByUpdater
   ) {
     return false;
   }
@@ -1264,6 +1282,15 @@ export async function rebuildTrajectoryCache() {
 
 export async function triggerCloudSync() {
   const res = await callSidecarApi('/api/cloud-sync', { method: 'POST', body: {} });
+  await fetchTelemetry({ force: true });
+  return res;
+}
+
+export async function triggerHostCdpSetup(action = 'apply', extra = {}) {
+  const res = await callSidecarApi('/api/cdp-setup', {
+    method: 'POST',
+    body: { action, ...(extra && typeof extra === 'object' ? extra : {}) },
+  });
   await fetchTelemetry({ force: true });
   return res;
 }

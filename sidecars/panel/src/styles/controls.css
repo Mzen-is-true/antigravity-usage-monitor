@@ -120,7 +120,9 @@
   container-type: inline-size;
   display: grid;
   grid-template-columns: repeat(var(--pill-count, 4), minmax(0, 1fr));
-  align-items: center;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
   padding: 3px;
   background: var(--surface-panel);
   border: 1px solid var(--border-hairline);
@@ -147,19 +149,20 @@
 .pill-tab {
   position: relative;
   z-index: 1;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
+  width: 100%;
   min-width: 0;
   min-height: calc(26px * var(--ui-font-scale, 1));
-  padding: 2px var(--space-2);
+  padding: 2px 5px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--fs-base);
   font-weight: 500;
-  line-height: 1.15;
+  line-height: 1;
   border-radius: var(--radius-pill);
   overflow: hidden;
   cursor: pointer;
@@ -169,29 +172,27 @@
 
 .pill-tab .svg-icon {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: calc(13.5px * var(--ui-font-scale, 1));
+  height: calc(13.5px * var(--ui-font-scale, 1));
   stroke-width: 1.65;
   flex-shrink: 0;
 }
 
 .pill-tab-label {
-  display: block;
+  display: inline-block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .pill-tab-badge {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
   flex-shrink: 0;
-  min-height: 14px;
-  line-height: 1.15;
-  margin-left: -2px;
-  font-size: var(--fs-base-sm);
+  line-height: 1.25;
+  margin-left: -1px;
+  font-size: var(--fs-md);
   opacity: 0.85;
 }
 
@@ -202,15 +203,15 @@
     font-size: var(--fs-md);
   }
   .pill-tab .svg-icon {
-    width: 13px;
-    height: 13px;
+    width: calc(12.5px * var(--ui-font-scale, 1));
+    height: calc(12.5px * var(--ui-font-scale, 1));
   }
   .pill-tab-badge {
     display: none !important;
   }
 }
 
-@container (max-width: 23em) {
+@container (max-width: 25em) {
   .pill-tab {
     gap: 0;
     padding: 2px 3px;
@@ -573,7 +574,9 @@
 .segmented {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 2px;
+  max-width: 100%;
   padding: 0;
   background: transparent;
   border: none;
@@ -751,6 +754,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 

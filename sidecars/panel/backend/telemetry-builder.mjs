@@ -43,6 +43,8 @@ import {
 import { getCloudStatus, getPricingPhaseEpoch, pricingCatalogRevision } from './pricing-catalog.mjs';
 import { buildOfficialQuotaPools, POOL_PRIORITY_ORDER } from './quota-pools.mjs';
 import { updateLedgerAndBuildSessionUsedQuota } from './quota-ledger.mjs';
+import { inspectHostCdpSetup } from './host-cdp-config.mjs';
+import { getWindowBridgeStatusSnapshot } from './window-bridge.mjs';
 import {
   aggregateMultiWindowUsage,
   buildScopedModelBreakdown,
@@ -1714,6 +1716,21 @@ export async function buildTelemetryPayloadInternal(
     },
     modelBreakdown,
   };
+
+  const baseBridgeSnap = getWindowBridgeStatusSnapshot({ settings });
+  if (
+    baseBridgeSnap.enabled &&
+    (baseBridgeSnap.state === 'no_devtools_port' || baseBridgeSnap.state === 'cdp_unreachable') &&
+    process.platform === 'win32'
+  ) {
+    const cdpInspect = await inspectHostCdpSetup({ force: false });
+    finalPayload.windowBridge = {
+      ...baseBridgeSnap,
+      cdpSetup: cdpInspect,
+    };
+  } else {
+    finalPayload.windowBridge = baseBridgeSnap;
+  }
 
   if (lsRuntimeEndpoint.addr !== 'test.invalid') {
     try {

@@ -647,3 +647,106 @@ test('Frontend store equivalence and UI panel placement / rendering verification
   assert.ok(Math.abs(sumSegPct(segBars[0]) - 100) < 0.2, 'top session bar spans ~100%');
   assert.ok(Math.abs(sumSegPct(segBars[1]) - 33.33) < 0.3, 'second session bar scales to 50k/150k = ~33.3%');
 });
+
+test('Built-in CDP shortcut manager: inspects, applies --remote-debugging-port=0 with backup + autoMaintainCdpShortcuts, and restores cleanly', async () => {
+  const mockShortcuts = [
+    { path: 'C:\\Users\\demo\\Desktop\\Antigravity.lnk', args: '--disable-gpu' },
+    { path: 'C:\\Users\\demo\\StartMenu\\Antigravity.lnk', args: '' },
+  ];
+
+  const h = backendHarness({
+    execFileImpl: (_cmd, _args, opts, cb) => {
+      const env = opts?.env || {};
+      const mode = env.AG_CDP_CFG_MODE || 'inspect';
+      const port = Number(env.AG_CDP_CFG_PORT || 0);
+      const restoreMap = env.AG_CDP_CFG_RESTORE_JSON
+        ? JSON.parse(env.AG_CDP_CFG_RESTORE_JSON)
+        : {};
+      let updatedCount = 0;
+      let restoredCount = 0;
+      const outList = mockShortcuts.map((item) => {
+        const prevArgs = item.args;
+        if (mode === 'apply') {
+          const clean = prevArgs.replace(/(?:^|\s+)--remote-debugging-port(?:=|\s+)\d+/gi, '').trim();
+          const nextArgs = clean
+            ? `${clean} --remote-debugging-port=${port}`
+            : `--remote-debugging-port=${port}`;
+          if (item.args !== nextArgs) {
+            item.args = nextArgs;
+            updatedCount += 1;
+          }
+        } else if (mode === 'restore') {
+          const key = item.path.toLowerCase();
+          const nextArgs = Object.prototype.hasOwnProperty.call(restoreMap, key)
+            ? restoreMap[key]
+            : prevArgs.replace(/(?:^|\s+)--remote-debugging-port(?:=|\s+)\d+/gi, '').trim();
+          if (item.args !== nextArgs) {
+            item.args = nextArgs;
+            restoredCount += 1;
+          }
+        }
+        return {
+          path: item.path,
+          previousArgs: prevArgs,
+          arguments: item.args,
+          hasCdpFlag: /--remote-debugging-port=\d+/i.test(item.args),
+        };
+      });
+      cb(
+        null,
+        JSON.stringify({
+          ok: true,
+          mode,
+          updatedCount,
+          restoredCount,
+          hostRunning: true,
+          hostHasCdpFlag: false,
+          launchedByUpdater: true,
+          explicitCdpPort: 0,
+          shortcuts: outList,
+        })
+      );
+    },
+  });
+
+  // 1. Initial inspect: 0/2 configured
+  const rCheck = JSON.parse((await h.executeCdpSetupAction('GET')).body);
+  assert.equal(rCheck.ok, true);
+  assert.equal(rCheck.cdpSetup.totalShortcuts, 2);
+  assert.equal(rCheck.cdpSetup.configuredShortcuts, 0);
+  assert.equal(rCheck.cdpSetup.shortcutsConfigured, false);
+  assert.equal(rCheck.cdpSetup.launchedByUpdater, true);
+
+  // 2. Apply: patches both shortcuts, backs up original args, enables autoMaintainCdpShortcuts
+  const rApply = JSON.parse((await h.executeCdpSetupAction('POST', { action: 'apply' })).body);
+  assert.equal(rApply.ok, true);
+  assert.equal(rApply.updatedShortcuts, 2);
+  assert.equal(rApply.configuredShortcuts, 2);
+  assert.equal(rApply.shortcutsConfigured, true);
+  assert.equal(rApply.needsColdRestart, true);
+  assert.equal(rApply.settings.autoMaintainCdpShortcuts, true);
+  assert.equal(mockShortcuts[0].args, '--disable-gpu --remote-debugging-port=0');
+  assert.equal(mockShortcuts[1].args, '--remote-debugging-port=0');
+
+  // 3. Restore: recovers exact original '--disable-gpu' and '' args, disables autoMaintainCdpShortcuts
+  const rRestore = JSON.parse((await h.executeCdpSetupAction('POST', { action: 'restore' })).body);
+  assert.equal(rRestore.ok, true);
+  assert.equal(rRestore.restoredShortcuts, 2);
+  assert.equal(rRestore.configuredShortcuts, 0);
+  assert.equal(rRestore.settings.autoMaintainCdpShortcuts, false);
+  assert.equal(mockShortcuts[0].args, '--disable-gpu');
+  assert.equal(mockShortcuts[1].args, '');
+});
+
+test('Responsive sidebar CSS & structured quota spans prevent fixed-width bar lock and tab clipping', () => {
+  const stylesCss = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+  assert.match(stylesCss, /\.view-pane\s*\{[\s\S]*?container-type:\s*inline-size;/);
+  assert.match(stylesCss, /\.panel\s*\{[\s\S]*?width:\s*100%;[\s\S]*?min-width:\s*0;/);
+  assert.match(stylesCss, /@container\s*\(max-width:\s*28\.5em\)\s*\{[\s\S]*?\.quota-meta-extra\s*\{\s*display:\s*none;/);
+  assert.match(stylesCss, /\.cdp-setup-box\s*\{/);
+  assert.match(stylesCss, /\.cdp-inline-banner\s*\{/);
+  assert.ok(appJs.includes('quota-meta-reset') && appJs.includes('quota-meta-extra'));
+  assert.ok(appJs.includes('cdp-setup-box') && appJs.includes('cdp-inline-banner'));
+});

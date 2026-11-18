@@ -220,6 +220,7 @@ app.api('/api/settings/reset', (_data, req) => handleProtectedApi('/api/settings
 app.api('/api/cache/rebuild', (_data, req) => handleProtectedApi('/api/cache/rebuild', 'POST', undefined, req));
 app.api('/api/cloud-sync', (_data, req) => handleProtectedApi('/api/cloud-sync', 'POST', undefined, req));
 app.api('/api/plugin-update', (_data, req) => handleProtectedApi('/api/plugin-update', 'POST', undefined, req));
+app.api('/api/cdp-setup', (data, req) => handleProtectedApi('/api/cdp-setup', req?.method || 'POST', data, req));
 
 app.run();
 if (isTestHarnessEnv) {

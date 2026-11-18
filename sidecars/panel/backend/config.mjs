@@ -150,6 +150,8 @@ export const CACHE_FILE = join(DATA_DIR, 'trajectory_usage_cache.json');
 export const REMOTE_CATALOG_CACHE_FILE = join(DATA_DIR, 'remote_pricing_cache.json');
 export const SESSION_QUOTA_LEDGER_FILE = join(DATA_DIR, 'session_quota_ledger.json');
 export const CLI_STATUS_SNAPSHOT_FILE = join(DATA_DIR, 'cli-status-snapshot.json');
+export const CDP_SHORTCUT_BACKUP_FILE = join(DATA_DIR, 'cdp-shortcut-backup.json');
+export const WINDOW_BRIDGE_LEASE_FILE = join(DATA_DIR, 'window-bridge-lease.json');
 
 /**
  * 本地对话记录目录、脑图日志目录、守护发现目录与跨端深层统计缓存路径候选列表（联合覆盖 Desktop / CLI / IDE）。

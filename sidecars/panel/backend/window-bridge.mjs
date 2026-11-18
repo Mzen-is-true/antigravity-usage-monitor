@@ -21,6 +21,7 @@ import {
 } from '../shared/window-bridge-protocol.mjs';
 import {
   DATA_DIR,
+  WINDOW_BRIDGE_LEASE_FILE,
   computeRuntimeCodeVersion,
   loadJson,
   loadSettings,
@@ -29,6 +30,7 @@ import {
   saveJson,
 } from './config.mjs';
 import { createContextWindowSyncExpression } from './context-windows.mjs';
+import { applyHostCdpSetup, inspectHostCdpSetup } from './host-cdp-config.mjs';
 
 const windowBridgeRef = `window[${JSON.stringify(WINDOW_BRIDGE_KEY)}]`;
 const windowOverlayRef = `window[${JSON.stringify(WINDOW_OVERLAY_KEY)}]`;
@@ -48,6 +50,7 @@ const ALLOWED_BRIDGE_PATHS = new Set([
   '/api/context-window',
   '/api/cloud-sync',
   '/api/plugin-update',
+  '/api/cdp-setup',
 ]);
 
 /**
@@ -732,7 +735,53 @@ export function createWindowBridgeController(options) {
   let hadContextWindows = false;
   let contextWindowBootId = `${process.pid}:${Date.now()}`;
   let nodeDepsPromise = null;
+  let lastAutoHealCheckAtMs = 0;
+  let lastAutoHealedAtMs = 0;
+  let lastBridgeStatus = {
+    state: 'initializing',
+    enabled: true,
+    mountMode: 'dual',
+    targetCount: 0,
+    aliveCount: 0,
+    autoHealedAtMs: 0,
+    updatedAtMs: 0,
+  };
   const allowedDynamicOrigins = new Set();
+
+  function recordBridgeSyncStatus(nextState, { enabled = true, mountMode = 'dual', targetCount = 0, aliveCount = 0 } = {}) {
+    const prev = lastBridgeStatus;
+    const now = Date.now();
+    const changed =
+      prev.state !== nextState ||
+      prev.enabled !== Boolean(enabled) ||
+      prev.mountMode !== mountMode ||
+      prev.targetCount !== Number(targetCount || 0) ||
+      prev.aliveCount !== Number(aliveCount || 0);
+    lastBridgeStatus = {
+      state: nextState,
+      enabled: Boolean(enabled),
+      mountMode,
+      targetCount: Number(targetCount || 0),
+      aliveCount: Number(aliveCount || 0),
+      autoHealedAtMs: lastAutoHealedAtMs,
+      updatedAtMs: now,
+    };
+    if (leaseFilePath && (changed || now - Number(prev.updatedAtMs || 0) >= 8000)) {
+      const curLease = loadJson(leaseFilePath, null);
+      const leasePid = Number(curLease?.pid || 0);
+      if (!leasePid || leasePid === process.pid || !isPidAlive(leasePid)) {
+        saveJson(leaseFilePath, {
+          ...(curLease && typeof curLease === 'object' ? curLease : {}),
+          pid: process.pid,
+          bundleVersion: String(getBundleVersionFn() || ''),
+          bridgePort: bridgePort > 0 ? bridgePort : Number(curLease?.bridgePort || 0) || undefined,
+          bridgeToken: bridgeToken || String(curLease?.bridgeToken || '') || undefined,
+          bridgeStatus: lastBridgeStatus,
+          updatedAtMs: now,
+        });
+      }
+    }
+  }
 
   async function loadNodeDeps() {
     if (!nodeDepsPromise) {
@@ -1392,24 +1441,65 @@ export function createWindowBridgeController(options) {
         }
       }
       saveJson(leaseFilePath, {
+        ...(lease && typeof lease === 'object' ? lease : {}),
         pid: process.pid,
         bundleVersion,
         bridgePort: bridgePort > 0 ? bridgePort : Number(lease?.bridgePort || 0) || undefined,
         bridgeToken: bridgeToken || String(lease?.bridgeToken || '') || undefined,
+        bridgeStatus: lastBridgeStatus.updatedAtMs > 0 ? lastBridgeStatus : lease?.bridgeStatus,
         updatedAtMs: Date.now(),
       });
     }
 
     const cdpPorts = findActiveDevToolsPorts();
     if (!cdpPorts.length) {
+      if (
+        enabled &&
+        autoConfigureIdeArgv &&
+        platform === 'win32' &&
+        curSettings.autoMaintainCdpShortcuts === true &&
+        Date.now() - lastAutoHealCheckAtMs > 60_000
+      ) {
+        lastAutoHealCheckAtMs = Date.now();
+        inspectHostCdpSetup({ force: true, platform, env })
+          .then((snap) => {
+            if (snap?.totalShortcuts > 0 && snap.configuredShortcuts < snap.totalShortcuts) {
+              return applyHostCdpSetup({ port: 0, platform, env }).then((res) => {
+                if (res?.ok && Number(res.updatedShortcuts || 0) > 0) {
+                  lastAutoHealedAtMs = Date.now();
+                }
+              });
+            }
+            return null;
+          })
+          .catch(() => {});
+      }
+      recordBridgeSyncStatus(enabled ? 'no_devtools_port' : 'disabled', {
+        enabled,
+        mountMode,
+        targetCount: 0,
+        aliveCount: 0,
+      });
       return { ok: false, enabled, reason: 'no_devtools_port', injected: 0 };
     }
 
     const { reachableCount, targets } = await collectAllMainWindowTargets(cdpPorts);
     if (reachableCount === 0) {
+      recordBridgeSyncStatus(enabled ? 'cdp_unreachable' : 'disabled', {
+        enabled,
+        mountMode,
+        targetCount: 0,
+        aliveCount: 0,
+      });
       return { ok: false, enabled, reason: 'cdp_unreachable', injected: 0 };
     }
     if (!targets.length) {
+      recordBridgeSyncStatus(enabled ? 'no_targets' : 'disabled', {
+        enabled,
+        mountMode,
+        targetCount: 0,
+        aliveCount: 0,
+      });
       return { ok: true, enabled, reason: 'no_targets', injected: 0 };
     }
 
@@ -1446,6 +1536,7 @@ export function createWindowBridgeController(options) {
     }
 
     if (!enabled) {
+      recordBridgeSyncStatus('disabled', { enabled: false, mountMode, targetCount: 0, aliveCount: 0 });
       if (!hadInjectedTargets && !hadInjectedChatFrames && !forceReinject) {
         return { ok: true, enabled: false, removed: 0 };
       }
@@ -1705,6 +1796,12 @@ export function createWindowBridgeController(options) {
     }
 
     cdpFallbackActive = sawCdpTransport;
+    recordBridgeSyncStatus(aliveCount > 0 ? 'mounted' : 'mount_failed', {
+      enabled: true,
+      mountMode,
+      targetCount: targets.length,
+      aliveCount,
+    });
     return {
       ok: true,
       enabled: true,
@@ -1840,10 +1937,70 @@ export function createWindowBridgeController(options) {
     start,
     stop,
     getBridgeInfo: () => ({ port: bridgePort, token: bridgeToken, running: Boolean(server) }),
+    getBridgeStatus: () => ({ ...lastBridgeStatus }),
   };
 }
 
 let defaultBridgeController = null;
+
+/**
+ * 读取当前跨进程共享的窗口桥接状态快照（兼容 Sidecar Worker Follower 与 Bridge Daemon Leader）。
+ */
+export function getWindowBridgeStatusSnapshot({
+  leaseFilePath = WINDOW_BRIDGE_LEASE_FILE,
+  settings = null,
+} = {}) {
+  const curSettings = settings || loadSettings() || {};
+  const mountMode = normalizeWindowMountMode(
+    curSettings.windowMountMode,
+    curSettings.enableWindowOverlay
+  );
+  const enabled = Boolean(curSettings.enableWindowOverlay !== false && mountMode !== 'sidebar');
+  if (!enabled) {
+    return {
+      state: 'disabled',
+      enabled: false,
+      mountMode,
+      targetCount: 0,
+      aliveCount: 0,
+      updatedAtMs: Date.now(),
+    };
+  }
+  const lease = leaseFilePath ? loadJson(leaseFilePath, null) : null;
+  const leaseStatus = lease?.bridgeStatus;
+  if (leaseStatus && typeof leaseStatus === 'object') {
+    const ageMs = Date.now() - Number(leaseStatus.updatedAtMs || lease?.updatedAtMs || 0);
+    if (ageMs >= 0 && ageMs < 20_000) {
+      return {
+        state: String(leaseStatus.state || 'initializing'),
+        enabled,
+        mountMode,
+        targetCount: Number(leaseStatus.targetCount || 0),
+        aliveCount: Number(leaseStatus.aliveCount || 0),
+        autoHealedAtMs: Number(leaseStatus.autoHealedAtMs || 0),
+        updatedAtMs: Number(leaseStatus.updatedAtMs || 0),
+      };
+    }
+  }
+  if (defaultBridgeController) {
+    const localSt = defaultBridgeController.getBridgeStatus();
+    if (localSt && localSt.updatedAtMs > 0) {
+      return {
+        ...localSt,
+        enabled,
+        mountMode,
+      };
+    }
+  }
+  return {
+    state: 'initializing',
+    enabled,
+    mountMode,
+    targetCount: 0,
+    aliveCount: 0,
+    updatedAtMs: 0,
+  };
+}
 
 /**
  * 启动进程级默认的双栖窗口桥接控制器（幂等）。

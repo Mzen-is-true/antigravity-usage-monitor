@@ -26,6 +26,8 @@
 .cons-box {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--surface-panel);
@@ -54,6 +56,39 @@
 
 .cons-matrix-bottom .cons-col {
   gap: 4px;
+}
+
+@container (max-width: 27em) {
+  .cons-matrix-bottom.cons-split-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cons-matrix-bottom .cons-col {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .cons-matrix-bottom .cons-col.is-bordered-col {
+    border-left: none;
+    border-top: 1px solid var(--border-hairline);
+  }
+  .cons-hero-num,
+  .cons-hero-cost,
+  .cons-hero-cache {
+    font-size: var(--fs-lg);
+  }
+}
+
+@container (max-width: 20.5em) {
+  .cons-split-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cons-col {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .cons-col.is-bordered-col {
+    border-left: none;
+    border-top: 1px solid var(--border-hairline);
+  }
 }
 
 @media (max-width: 350px) {

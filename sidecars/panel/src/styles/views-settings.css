@@ -44,10 +44,23 @@
 
 /* --- 结构页三级子导航菜单 (.settings-thirdnav-bar) --- */
 .settings-thirdnav-bar {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
+  width: 100%;
+  min-width: 0;
   flex-shrink: 0;
+}
+
+@container (max-width: 24em) {
+  .structure-thirdnav-btn {
+    gap: 0;
+    padding: 2px 3px;
+  }
+  .structure-thirdnav-btn .svg-icon {
+    display: none;
+  }
 }
 
 .structure-thirdnav-btn {
@@ -817,4 +830,75 @@
   min-height: calc(26px * var(--ui-font-scale, 1));
   padding: 2px var(--space-3);
   font-size: var(--fs-md);
+}
+
+/* --- 挂载页：顶栏本地调试通道与启动参数一键配置卡片 (.cdp-setup-box) --- */
+.cdp-setup-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-subtle);
+}
+
+.cdp-setup-box.is-warn {
+  border-color: color-mix(in srgb, var(--metric-warn) 38%, var(--border-hairline));
+  background: color-mix(in srgb, var(--metric-warn) 6%, var(--surface-panel));
+}
+
+.cdp-setup-box.is-mounted {
+  border-color: color-mix(in srgb, var(--metric-ok) 32%, var(--border-hairline));
+  background: color-mix(in srgb, var(--metric-ok) 5%, var(--surface-panel));
+}
+
+.cdp-setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cdp-setup-title {
+  font-size: var(--fs-base-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.cdp-setup-badge {
+  font-size: var(--fs-sm);
+  flex-shrink: 0;
+}
+
+.cdp-setup-desc {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.cdp-setup-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.cdp-action-btn {
+  min-height: calc(25px * var(--ui-font-scale, 1));
+  padding: 2px 9px;
+  font-size: var(--fs-md);
+}
+
+.cdp-setup-feedback {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
 }
